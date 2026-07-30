@@ -7,6 +7,7 @@ const std = @import("std");
 const Color = @import("../core/color.zig").Color;
 const modulateColor = @import("../core/color.zig").modulateColor;
 const Vertex = @import("renderer.zig").Vertex;
+const ThreadPool = @import("../core/thread_pool.zig").ThreadPool;
 const x11 = @import("../platform/x11.zig");
 const platform = @import("../platform/window.zig");
 const testing = std.testing;
@@ -211,6 +212,140 @@ pub const SoftwareBackend = struct {
         _ = x11.XFlush(self.window.display);
     }
 
+    /// Store a reference to the engine's thread pool for strip rendering.
+    /// The pool is owned by Engine; the backend just borrows it.
+    pub fn setPool(self: *SoftwareBackend, pool: *ThreadPool, count: u32) void {
+        self.pool = pool;
+        self.thread_count = count;
+    }
+
+    /// Render a triangle clipped to a horizontal strip of the framebuffer.
+    ///
+    /// Contract: identical visual output to `drawTriangle` but only processes
+    /// scanlines where `y_min <= y < y_max`.  If the triangle's bounding box
+    /// does not intersect the strip, returns immediately (no work).
+    ///
+    /// Thread-safe on disjoint strips: caller guarantees that no two calls
+    /// overlap in Y, so writes to `fb` and `zb` are to non-overlapping regions
+    /// and need zero synchronization.
+    pub fn drawTriangleStrip(self: *SoftwareBackend, v0: Vertex, v1: Vertex, v2: Vertex, texture: []const u8, y_min: i32, y_max: i32) void {
+        // ---------------------------------------------------------------
+        // 1. Sort vertices by Y (bubble sort, 3 elements)
+        // ---------------------------------------------------------------
+        var v = [_]Vertex{ v0, v1, v2 };
+        if (v[0].y > v[1].y) { const t = v[0]; v[0] = v[1]; v[1] = t; }
+        if (v[1].y > v[2].y) { const t = v[1]; v[1] = v[2]; v[2] = t; }
+        if (v[0].y > v[1].y) { const t = v[0]; v[0] = v[1]; v[1] = t; }
+
+        // ---------------------------------------------------------------
+        // 2. Compute area and early-out for back-face / degenerate
+        // ---------------------------------------------------------------
+        const area = (v[1].x - v[0].x) * (v[2].y - v[0].y) - (v[1].y - v[0].y) * (v[2].x - v[0].x);
+        if (@abs(area) < 0.001) return;
+        const inv_area = 1.0 / area;
+
+        // ---------------------------------------------------------------
+        // 3. DDA coefficients — edge function increments per pixel step
+        // ---------------------------------------------------------------
+        const dw0_dx = v[1].y - v[2].y;
+        const dw1_dx = v[2].y - v[0].y;
+        const dw2_dx = v[0].y - v[1].y;
+
+        // ---------------------------------------------------------------
+        // 4. Clamp to screen bounds AND strip bounds
+        // ---------------------------------------------------------------
+        const tri_y_start = @max(0, @as(i32, @intFromFloat(v[0].y)));
+        const tri_y_end = @min(@as(i32, @intFromFloat(v[2].y)), @as(i32, @intCast(self.height - 1)));
+
+        // Intersect triangle Y range with strip Y range.
+        const y_start = @max(tri_y_start, y_min);
+        const y_end = @min(tri_y_end, y_max - 1);
+        if (y_start > y_end) return; // No overlap with this strip.
+
+        const min_x = @max(0, @as(i32, @intFromFloat(@min(v[0].x, @min(v[1].x, v[2].x)))));
+        const max_x = @min(@as(i32, @intCast(self.width - 1)), @as(i32, @intFromFloat(@max(v[0].x, @max(v[1].x, v[2].x)))));
+        if (min_x > max_x) return;
+
+        const fb = self.fb;
+        const zb = self.zb;
+
+        // Pre-fetch vertex attributes.
+        const z0 = v[0].z; const z1 = v[1].z; const z2 = v[2].z;
+        const r0: f32 = @floatFromInt(v[0].color.r);
+        const r1: f32 = @floatFromInt(v[1].color.r);
+        const r2: f32 = @floatFromInt(v[2].color.r);
+        const g0: f32 = @floatFromInt(v[0].color.g);
+        const g1: f32 = @floatFromInt(v[1].color.g);
+        const g2: f32 = @floatFromInt(v[2].color.g);
+        const b0: f32 = @floatFromInt(v[0].color.b);
+        const b1: f32 = @floatFromInt(v[1].color.b);
+        const b2: f32 = @floatFromInt(v[2].color.b);
+        const tu0 = v[0].u; const tu1 = v[1].u; const tu2 = v[2].u;
+        const tv0 = v[0].v; const tv1 = v[1].v; const tv2 = v[2].v;
+
+        const iarea = inv_area;
+        const dz_dx = (dw0_dx * z0 + dw1_dx * z1 + dw2_dx * z2) * iarea;
+        const dr_dx = (dw0_dx * r0 + dw1_dx * r1 + dw2_dx * r2) * iarea;
+        const dg_dx = (dw0_dx * g0 + dw1_dx * g1 + dw2_dx * g2) * iarea;
+        const db_dx = (dw0_dx * b0 + dw1_dx * b1 + dw2_dx * b2) * iarea;
+        const du_dx = (dw0_dx * tu0 + dw1_dx * tu1 + dw2_dx * tu2) * iarea;
+        const dv_dx = (dw0_dx * tv0 + dw1_dx * tv1 + dw2_dx * tv2) * iarea;
+
+        // ---------------------------------------------------------------
+        // 5. Scanline fill — clipped to strip bounds
+        // ---------------------------------------------------------------
+        var y: i32 = y_start;
+        while (y <= y_end) : (y += 1) {
+            const fy: f32 = @floatFromInt(y);
+            const y_base = @as(usize, @intCast(y)) * @as(usize, self.width);
+
+            // Compute w0,w1,w2 at start-of-scanline (x = min_x).
+            const fx0: f32 = @floatFromInt(min_x);
+            var w0 = (v[2].x - v[1].x) * (fy - v[1].y) - (v[2].y - v[1].y) * (fx0 - v[1].x);
+            var w1 = (v[0].x - v[2].x) * (fy - v[2].y) - (v[0].y - v[2].y) * (fx0 - v[2].x);
+            var w2 = (v[1].x - v[0].x) * (fy - v[0].y) - (v[1].y - v[0].y) * (fx0 - v[0].x);
+
+            var scan_z = (w0 * z0 + w1 * z1 + w2 * z2) * iarea;
+            var scan_r = (w0 * r0 + w1 * r1 + w2 * r2) * iarea;
+            var scan_g = (w0 * g0 + w1 * g1 + w2 * g2) * iarea;
+            var scan_b = (w0 * b0 + w1 * b1 + w2 * b2) * iarea;
+            var scan_u = (w0 * tu0 + w1 * tu1 + w2 * tu2) * iarea;
+            var scan_v = (w0 * tv0 + w1 * tv1 + w2 * tv2) * iarea;
+
+            var x: i32 = min_x;
+            @setRuntimeSafety(false);
+            while (x <= max_x) : (x += 1) {
+                if (w0 >= 0 and w1 >= 0 and w2 >= 0) {
+                    const zb_idx = y_base + @as(usize, @intCast(x));
+                    if (scan_z < zb[zb_idx]) {
+                        zb[zb_idx] = scan_z;
+                        const ir = @max(0, @min(255, @as(i32, @intFromFloat(scan_r))));
+                        const ig = @max(0, @min(255, @as(i32, @intFromFloat(scan_g))));
+                        const ib = @max(0, @min(255, @as(i32, @intFromFloat(scan_b))));
+                        const tex_color = sampleTexture(texture, scan_u, scan_v);
+                        const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
+                        const final_color = modulateColor(vert_color, tex_color);
+                        const fb_idx = zb_idx * PIXEL_BYTES;
+                        fb[fb_idx] = final_color.b;
+                        fb[fb_idx + 1] = final_color.g;
+                        fb[fb_idx + 2] = final_color.r;
+                        fb[fb_idx + 3] = 255;
+                    }
+                }
+                w0 += dw0_dx;
+                w1 += dw1_dx;
+                w2 += dw2_dx;
+                scan_z += dz_dx;
+                scan_r += dr_dx;
+                scan_g += dg_dx;
+                scan_b += db_dx;
+                scan_u += du_dx;
+                scan_v += dv_dx;
+            }
+            @setRuntimeSafety(true);
+        }
+    }
+
     fn putPixel(self: *SoftwareBackend, x: i32, y: i32, color: Color) void {
         const w: i32 = @intCast(self.width);
         const h: i32 = @intCast(self.height);
@@ -248,6 +383,10 @@ pub const SoftwareBackend = struct {
     height: u32,
     gc: x11.GC,
     ximage_data: []u8,
+
+    /// Thread pool borrowed from Engine (strip rendering).
+    pool: ?*ThreadPool = null,
+    thread_count: u32 = 0,
 };
 
 /// Generate a sphere mesh as un-indexed triangles using a lat/long grid.

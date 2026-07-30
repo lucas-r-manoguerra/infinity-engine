@@ -30,6 +30,9 @@ pub const Benchmark = struct {
     ms_post_update: f32 = 0,
     ms_render: f32 = 0,
 
+    /// Time spent waiting for thread pool workers to finish (strip rasterization).
+    ms_thread_wait: f32 = 0,
+
     // Internal: high-res timer values
     phase_start: u64 = 0,
     frame_start: u64 = 0,
@@ -40,6 +43,7 @@ pub const Benchmark = struct {
     acc_update: f32 = 0,
     acc_post_update: f32 = 0,
     acc_render: f32 = 0,
+    acc_thread_wait: f32 = 0,
     acc_frame_count: u32 = 0,
     acc_entities: u64 = 0,
 
@@ -61,6 +65,7 @@ pub const Benchmark = struct {
         self.ms_update = 0;
         self.ms_post_update = 0;
         self.ms_render = 0;
+        self.ms_thread_wait = 0;
     }
 
     /// Call before the work of a phase.
@@ -99,6 +104,7 @@ pub const Benchmark = struct {
         self.acc_post_update += self.ms_post_update;
         self.acc_render += self.ms_render;
         self.acc_entities += entities_alive;
+        self.acc_thread_wait += self.ms_thread_wait;
         self.acc_frame_count += 1;
 
         // Check if it's time to report
@@ -117,6 +123,7 @@ pub const Benchmark = struct {
         const avg_upd = self.acc_update / n;
         const avg_post = self.acc_post_update / n;
         const avg_render = self.acc_render / n;
+        const avg_wait = self.acc_thread_wait / n;
         const avg_entities_f: f64 = @floatFromInt(self.acc_entities);
         const avg_entities: u32 = @intFromFloat(avg_entities_f / n);
 
@@ -127,7 +134,8 @@ pub const Benchmark = struct {
         std.debug.print("│  ├─ Pre-Update:  {d: >6.2}ms              │\n", .{avg_pre});
         std.debug.print("│  ├─ Update:      {d: >6.2}ms              │\n", .{avg_upd});
         std.debug.print("│  ├─ Post-Update: {d: >6.2}ms              │\n", .{avg_post});
-        std.debug.print("│  └─ Render:      {d: >6.2}ms              │\n", .{avg_render});
+        std.debug.print("│  ├─ Render:      {d: >6.2}ms              │\n", .{avg_render});
+        std.debug.print("│  │  └─ Wait:     {d: >6.2}ms              │\n", .{avg_wait});
         std.debug.print("│ Entities:      {d: >5}                    │\n", .{avg_entities});
         std.debug.print("╰──────────────────────────────────────────╯\n", .{});
     }
@@ -138,6 +146,7 @@ pub const Benchmark = struct {
         self.acc_update = 0;
         self.acc_post_update = 0;
         self.acc_render = 0;
+        self.acc_thread_wait = 0;
         self.acc_entities = 0;
         self.acc_frame_count = 0;
         self.min_frame_ms = 9999;

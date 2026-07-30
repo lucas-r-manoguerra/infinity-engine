@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const Color = @import("../core/color.zig").Color;
+const ThreadPool = @import("../core/thread_pool.zig").ThreadPool;
 const platform = @import("../platform/window.zig");
 
 pub const RenderConfig = struct {
@@ -64,9 +65,24 @@ pub const Backend = union(enum) {
         }
     }
 
+    /// Render a triangle clipped to a horizontal strip of the framebuffer.
+    /// Thread-safe: caller must ensure no two calls overlap in Y.
+    pub fn drawTriangleStrip(self: *Backend, v0: Vertex, v1: Vertex, v2: Vertex, texture: []const u8, y_min: i32, y_max: i32) void {
+        switch (self.*) {
+            inline else => |*b| b.drawTriangleStrip(v0, v1, v2, texture, y_min, y_max),
+        }
+    }
+
     pub fn present(self: *Backend) void {
         switch (self.*) {
             inline else => |*b| b.present(),
+        }
+    }
+
+    /// Attach a thread pool for parallel strip rasterization.
+    pub fn setPool(self: *Backend, pool: *ThreadPool, count: u32) void {
+        switch (self.*) {
+            inline else => |*b| b.setPool(pool, count),
         }
     }
 };

@@ -16,6 +16,7 @@ const SystemMod = @import("../ecs/system.zig");
 const ComponentReg = @import("../ecs/component.zig");
 const Query = @import("../ecs/query.zig").Query;
 const Entity = @import("../ecs/entity.zig").Entity;
+const ThreadPool = @import("../core/thread_pool.zig").ThreadPool;
 const time = @import("../core/time.zig");
 const diagnostics = @import("../core/diagnostics.zig");
 
@@ -92,6 +93,13 @@ pub const Engine = struct {
     benchmark: diagnostics.Benchmark,
     fps_counter: time.FpsCounter,
 
+    /// Thread pool for parallel strip rasterization.
+    /// Initialised in postInit, used in render system.
+    thread_pool: ThreadPool = undefined,
+
+    /// Number of worker threads to use for strip dispatch (0 = disabled).
+    thread_count: u32 = 0,
+
     pub fn init(allocator: std.mem.Allocator, config: EngineConfig) EngineError!Engine {
         const texture = software.generateBrickTexture();
 
@@ -145,6 +153,11 @@ pub const Engine = struct {
         self.rotation_speed_id = try self.ecs_world.registerComponent(RotationSpeed);
         self.orbit_id = try self.ecs_world.registerComponent(Orbit);
         self.parent_id = try self.ecs_world.registerComponent(Parent);
+
+        // Init thread pool for parallel rasterization.
+        self.thread_pool = try ThreadPool.init(self.allocator, 4);
+        self.thread_count = 4;
+        self.backend.setPool(&self.thread_pool, 4);
 
         // Generate mesh vertex buffers for sphere and torus shapes
         self.sphere_mesh = try software.generateSphere(self.allocator, 16, 16, 1.0);
@@ -291,6 +304,7 @@ pub const Engine = struct {
 
         // Render system — renders all entities with Transform (shape-based dispatch).
         // Front-to-back sorted by view-space Z for early Z rejection (overdraw reduction).
+        // When thread_count > 0, dispatches to 4 parallel strip workers.
         try self.ecs_world.addSystem(SystemMod.System.init("render", .render, self, struct {
             fn run(ctx: ?*anyopaque, world: *World, dt: f64) void {
                 _ = dt;
@@ -320,17 +334,34 @@ pub const Engine = struct {
                     }
                 }.lessThan);
 
-                // Second pass: render in sorted order
-                for (engine.sort_buffer[0..count]) |entry| {
-                    const xf = world.getComponent(entry.entity, engine.transform_id, Transform).?;
-                    switch (xf.shape) {
-                        .cube => renderCube(engine, xf, view, proj),
-                        .sphere => renderMesh(engine, engine.sphere_mesh, xf, view, proj),
-                        .torus => renderMesh(engine, engine.torus_mesh, xf, view, proj),
+                // Second pass: render in sorted order (multi-threaded or single)
+                if (engine.thread_count > 0) {
+                    const strip_ctx = StripCtx{
+                        .engine = engine,
+                        .world = world,
+                        .entries = engine.sort_buffer[0..count],
+                        .count = count,
+                        .view = view,
+                        .proj = proj,
+                    };
+                    engine.thread_pool.spawn(stripWorker, &strip_ctx, engine.thread_count);
+                    const wait_ns = time.nanoTime();
+                    engine.thread_pool.wait();
+                    engine.benchmark.ms_thread_wait = @as(f32, @floatFromInt(time.nanoTime() - wait_ns)) / @as(f32, std.time.ns_per_ms);
+                } else {
+                    for (engine.sort_buffer[0..count]) |entry| {
+                        const xf = world.getComponent(entry.entity, engine.transform_id, Transform).?;
+                        switch (xf.shape) {
+                            .cube => renderCube(engine, xf, view, proj, 0, 0),
+                            .sphere => renderMesh(engine, engine.sphere_mesh, xf, view, proj, 0, 0),
+                            .torus => renderMesh(engine, engine.torus_mesh, xf, view, proj, 0, 0),
+                        }
                     }
                 }
             }
         }.run));
+
+        // stripWorker is defined at module level below.
     }
 
     pub fn deinit(self: *Engine) void {
@@ -338,6 +369,7 @@ pub const Engine = struct {
         if (self.sphere_mesh.len > 0) self.allocator.free(self.sphere_mesh);
         if (self.torus_mesh.len > 0) self.allocator.free(self.torus_mesh);
         if (self.sort_buffer.len > 0) self.allocator.free(self.sort_buffer);
+        if (self.thread_count > 0) self.thread_pool.deinit();
         self.ecs_world.deinit();
         window.windowDestroy(&self.win);
         self.backend.deinit();
@@ -389,6 +421,37 @@ pub const Engine = struct {
     }
 };
 
+/// Shared context for parallel strip rendering workers.
+/// Each worker receives a pointer to this struct via ThreadPool.spawn.
+const StripCtx = struct {
+    engine: *Engine,
+    world: *World,
+    entries: []SortEntry,
+    count: usize,
+    view: Mat4,
+    proj: Mat4,
+};
+
+/// Worker function for strip rasterization.
+/// Each thread renders ALL entities, but clips rasterization to its Y range.
+fn stripWorker(idx: usize, ctx: *StripCtx) void {
+    const engine = ctx.engine;
+    const h = engine.config.height;
+    const tc = engine.thread_count;
+    const strip_h = (h + tc - 1) / tc;
+    const y_min = @as(i32, @intCast(idx * strip_h));
+    const y_max = @min(@as(i32, @intCast((idx + 1) * strip_h)), @as(i32, @intCast(h)));
+
+    for (ctx.entries[0..ctx.count]) |entry| {
+        const xf = ctx.world.getComponent(entry.entity, engine.transform_id, Transform).?;
+        switch (xf.shape) {
+            .cube => renderCube(engine, xf, ctx.view, ctx.proj, y_min, y_max),
+            .sphere => renderMesh(engine, engine.sphere_mesh, xf, ctx.view, ctx.proj, y_min, y_max),
+            .torus => renderMesh(engine, engine.torus_mesh, xf, ctx.view, ctx.proj, y_min, y_max),
+        }
+    }
+}
+
 /// Clip-space vertex (result of MVP transform).
 const ClipVert = struct { x: f32, y: f32, z: f32, w: f32 };
 
@@ -408,7 +471,8 @@ fn lambertFactor(world_normal: Vec3) f32 {
 }
 
 /// Render a textured cube with the given transform and camera matrices.
-fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4) void {
+/// When `y_min < y_max`, clips rasterization to the horizontal strip [y_min, y_max).
+fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4, y_min: i32, y_max: i32) void {
     const half: f32 = 1.5 * transform.scale;
     const positions = [_]Vec3{
         Vec3.init(-half, -half, -half),
@@ -500,18 +564,23 @@ fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4) vo
         const iw1 = 1.0 / clip1.w;
         const iw2 = 1.0 / clip2.w;
 
-        engine.backend.drawTriangle(
-            Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = 0, .ny = 0, .nz = 0, .u = tri.u0 * iw0, .v = tri.v0 * iw0, .inv_w = iw0, .color = c0 },
-            Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = 0, .ny = 0, .nz = 0, .u = tri.u1 * iw1, .v = tri.v1 * iw1, .inv_w = iw1, .color = c1 },
-            Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = 0, .ny = 0, .nz = 0, .u = tri.u2 * iw2, .v = tri.v2 * iw2, .inv_w = iw2, .color = c2 },
-            engine.texture[0..],
-        );
+        const vx0 = Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = 0, .ny = 0, .nz = 0, .u = tri.u0 * iw0, .v = tri.v0 * iw0, .inv_w = iw0, .color = c0 };
+        const vx1 = Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = 0, .ny = 0, .nz = 0, .u = tri.u1 * iw1, .v = tri.v1 * iw1, .inv_w = iw1, .color = c1 };
+        const vx2 = Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = 0, .ny = 0, .nz = 0, .u = tri.u2 * iw2, .v = tri.v2 * iw2, .inv_w = iw2, .color = c2 };
+        const tex_slice = engine.texture[0..];
+
+        if (y_min < y_max) {
+            engine.backend.drawTriangleStrip(vx0, vx1, vx2, tex_slice, y_min, y_max);
+        } else {
+            engine.backend.drawTriangle(vx0, vx1, vx2, tex_slice);
+        }
     }
 }
 
 /// Render a mesh from a vertex buffer (3 vertices per triangle).
 /// Per-vertex normal lighting, back-face culling via screen-space area.
-fn renderMesh(engine: *Engine, mesh: []const Vertex, transform: *Transform, view: Mat4, proj: Mat4) void {
+/// When `y_min < y_max`, clips rasterization to the horizontal strip [y_min, y_max).
+fn renderMesh(engine: *Engine, mesh: []const Vertex, transform: *Transform, view: Mat4, proj: Mat4, y_min: i32, y_max: i32) void {
     const model = Mat4.mul(
         Mat4.translate(Vec3.init(transform.x, transform.y, transform.z)),
         Mat4.mul(Mat4.rotateY(transform.rot_y), Mat4.rotateX(transform.rot_x)),
@@ -587,12 +656,16 @@ fn renderMesh(engine: *Engine, mesh: []const Vertex, transform: *Transform, view
         const iw1 = 1.0 / clip1.w;
         const iw2 = 1.0 / clip2.w;
 
-        engine.backend.drawTriangle(
-            Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = v0.nx, .ny = v0.ny, .nz = v0.nz, .u = v0.u * iw0, .v = v0.v * iw0, .inv_w = iw0, .color = c0 },
-            Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = v1.nx, .ny = v1.ny, .nz = v1.nz, .u = v1.u * iw1, .v = v1.v * iw1, .inv_w = iw1, .color = c1 },
-            Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = v2.nx, .ny = v2.ny, .nz = v2.nz, .u = v2.u * iw2, .v = v2.v * iw2, .inv_w = iw2, .color = c2 },
-            engine.texture[0..],
-        );
+        const vx0 = Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = v0.nx, .ny = v0.ny, .nz = v0.nz, .u = v0.u * iw0, .v = v0.v * iw0, .inv_w = iw0, .color = c0 };
+        const vx1 = Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = v1.nx, .ny = v1.ny, .nz = v1.nz, .u = v1.u * iw1, .v = v1.v * iw1, .inv_w = iw1, .color = c1 };
+        const vx2 = Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = v2.nx, .ny = v2.ny, .nz = v2.nz, .u = v2.u * iw2, .v = v2.v * iw2, .inv_w = iw2, .color = c2 };
+        const tex_slice = engine.texture[0..];
+
+        if (y_min < y_max) {
+            engine.backend.drawTriangleStrip(vx0, vx1, vx2, tex_slice, y_min, y_max);
+        } else {
+            engine.backend.drawTriangle(vx0, vx1, vx2, tex_slice);
+        }
     }
 }
 

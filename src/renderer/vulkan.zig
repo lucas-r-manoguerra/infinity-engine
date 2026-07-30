@@ -29,6 +29,7 @@ const testing = std.testing;
 
 const Color = @import("../core/color.zig").Color;
 const EngineError = @import("../core/error.zig").Error;
+const ThreadPool = @import("../core/thread_pool.zig").ThreadPool;
 const RenderConfig = @import("renderer.zig").RenderConfig;
 const Vertex = @import("renderer.zig").Vertex;
 const vk = @import("vk.zig");
@@ -916,6 +917,20 @@ pub const VulkanBackend = struct {
 
         _ = self.loader.vkQueueSubmit(self.queue, 1, @ptrCast(&submit_info), self.in_flight_fence);
     }
+
+    // ------------------------------------------------------------------
+    // setPool
+    // ------------------------------------------------------------------
+
+    /// No-op for Vulkan backend — strip rasterization is software-only.
+    pub fn setPool(_: *VulkanBackend, _: *ThreadPool, _: u32) void {}
+
+    // ------------------------------------------------------------------
+    // drawTriangleStrip
+    // ------------------------------------------------------------------
+
+    /// No-op — Vulkan doesn't need strip rasterization.
+    pub fn drawTriangleStrip(_: *VulkanBackend, _: Vertex, _: Vertex, _: Vertex, _: []const u8, _: i32, _: i32) void {}
 
     // ------------------------------------------------------------------
     // drawTriangle
