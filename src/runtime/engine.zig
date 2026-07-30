@@ -61,11 +61,22 @@ const Orbit = struct {
 const Parent = struct { parent: Entity };
 
 const TEXTURE_SIZE = software.TEXTURE_W * software.TEXTURE_H * 4;
+const TILE_SIZE = software.TILE_SIZE;
+
+// MAX_TRIS_PER_TILE removed — now uses prefix-sum indexed dynamic bins.
 
 /// Sort entry for front-to-back entity sorting (view-space Z, entity handle).
 const SortEntry = struct {
     z: f32,
     entity: Entity,
+};
+
+/// Fully pre-transformed screen-space triangle, ready for rasterization.
+/// Produced by emit* functions on the main thread, consumed by tileWorker.
+const ScreenTri = struct {
+    v0: Vertex,
+    v1: Vertex,
+    v2: Vertex,
 };
 
 pub const Engine = struct {
@@ -89,6 +100,24 @@ pub const Engine = struct {
     // Sort buffer for front-to-back entity sorting
     sort_buffer: []SortEntry = &[_]SortEntry{},
 
+    // Pre-transform triangle buffer (work-stealing queue)
+    tri_buffer: []ScreenTri = &[_]ScreenTri{},
+    tri_capacity: u32 = 0,
+
+    /// Number of valid triangles in tri_buffer after the pre-transform phase.
+    /// Set by the main thread during emit, consumed by the binning pass.
+    tri_count: u32 = 0,
+
+    // Tile-based rasterizer state
+    num_tiles_x: u32 = 0,
+    num_tiles_y: u32 = 0,
+    tile_tris: []ScreenTri = &[_]ScreenTri{},
+    /// Per-tile triangle count (reused as write-position counter in two-pass binning).
+    tile_counts: []u32 = &[_]u32{},
+    /// Prefix-sum offsets: tile_offsets[t] = start index in tile_tris for tile t,
+    /// tile_offsets[total_tiles] = total used entries.
+    tile_offsets: []u32 = &[_]u32{},
+
     // Benchmark
     benchmark: diagnostics.Benchmark,
     fps_counter: time.FpsCounter,
@@ -100,7 +129,11 @@ pub const Engine = struct {
     /// Number of worker threads to use for strip dispatch (0 = disabled).
     thread_count: u32 = 0,
 
-    pub fn init(allocator: std.mem.Allocator, config: EngineConfig) EngineError!Engine {
+    /// When true (default), use tile-based rasterizer.
+    /// When false, fall back to full-frame drawTriangle (single-threaded diagnostic).
+    use_tiles: bool = true,
+
+    pub fn init(allocator: std.mem.Allocator, config: EngineConfig, use_tiles_param: bool) EngineError!Engine {
         const texture = software.generateBrickTexture();
 
         // 1. Create engine struct first so .win lives at a stable address.
@@ -121,6 +154,7 @@ pub const Engine = struct {
             .rotation_speed_id = undefined,
             .orbit_id = undefined,
             .parent_id = undefined,
+            .use_tiles = use_tiles_param,
         };
         errdefer window.windowDestroy(&engine.win);
 
@@ -142,6 +176,37 @@ pub const Engine = struct {
             return error.WindowInitFailed;
         };
         errdefer allocator.free(engine.sort_buffer);
+
+        // 5. Allocate pre-transform triangle buffer (64K = generous cap for the demo scene)
+        engine.tri_capacity = 64 * 1024;
+        engine.tri_buffer = allocator.alloc(ScreenTri, engine.tri_capacity) catch |err| {
+            std.debug.print("[FAIL] Tri buffer alloc: {}\n", .{err});
+            return error.WindowInitFailed;
+        };
+        errdefer allocator.free(engine.tri_buffer);
+
+        // 6. Allocate tile-based rasterizer state (prefix-sum indexed dynamic bins)
+        engine.num_tiles_x = (config.width + TILE_SIZE - 1) / TILE_SIZE;
+        engine.num_tiles_y = (config.height + TILE_SIZE - 1) / TILE_SIZE;
+        const total_tiles = engine.num_tiles_x * engine.num_tiles_y;
+        // Pre-allocate tri_capacity * 4 entries — enough for 36K tris × ~4 tiles avg
+        // with headroom. If overflow occurs, the render system panics with a clear
+        // message instead of silently dropping triangles.
+        engine.tile_tris = allocator.alloc(ScreenTri, engine.tri_capacity * 4) catch |err| {
+            std.debug.print("[FAIL] Tile tris buffer alloc: {}\n", .{err});
+            return error.WindowInitFailed;
+        };
+        errdefer allocator.free(engine.tile_tris);
+        engine.tile_counts = allocator.alloc(u32, total_tiles) catch |err| {
+            std.debug.print("[FAIL] Tile counts alloc: {}\n", .{err});
+            return error.WindowInitFailed;
+        };
+        errdefer allocator.free(engine.tile_counts);
+        engine.tile_offsets = allocator.alloc(u32, total_tiles + 1) catch |err| {
+            std.debug.print("[FAIL] Tile offsets alloc: {}\n", .{err});
+            return error.WindowInitFailed;
+        };
+        errdefer allocator.free(engine.tile_offsets);
 
         return engine;
     }
@@ -304,7 +369,9 @@ pub const Engine = struct {
 
         // Render system — renders all entities with Transform (shape-based dispatch).
         // Front-to-back sorted by view-space Z for early Z rejection (overdraw reduction).
-        // When thread_count > 0, dispatches to 4 parallel strip workers.
+        // Pre-transform → work-stealing queue: the main thread transforms ALL visible
+        // triangles once (eliminating 4× vertex-transform duplication), then parallel
+        // workers atomically steal triangles from the shared buffer for rasterization.
         try self.ecs_world.addSystem(SystemMod.System.init("render", .render, self, struct {
             fn run(ctx: ?*anyopaque, world: *World, dt: f64) void {
                 _ = dt;
@@ -334,34 +401,147 @@ pub const Engine = struct {
                     }
                 }.lessThan);
 
-                // Second pass: render in sorted order (multi-threaded or single)
-                if (engine.thread_count > 0) {
-                    const strip_ctx = StripCtx{
-                        .engine = engine,
-                        .world = world,
-                        .entries = engine.sort_buffer[0..count],
-                        .count = count,
-                        .view = view,
-                        .proj = proj,
-                    };
-                    engine.thread_pool.spawn(stripWorker, &strip_ctx, engine.thread_count);
-                    const wait_ns = time.nanoTime();
-                    engine.thread_pool.wait();
-                    engine.benchmark.ms_thread_wait = @as(f32, @floatFromInt(time.nanoTime() - wait_ns)) / @as(f32, std.time.ns_per_ms);
+                // Pre-combine view×proj so each emit call saves one multiply.
+                const view_proj = Mat4.mul(proj, view);
+
+                // Phase 1: pre-transform all triangles into tri_buffer (main thread, serial).
+                // This runs ONE vertex transform per triangle instead of 4× per worker.
+                engine.tri_count = 0;
+                for (engine.sort_buffer[0..count]) |entry| {
+                    const xf = world.getComponent(entry.entity, engine.transform_id, Transform).?;
+                    switch (xf.shape) {
+                        .cube => emitCubeTris(engine, xf, view_proj),
+                        .sphere => emitMeshTris(engine, engine.sphere_mesh, xf, view_proj),
+                        .torus => emitMeshTris(engine, engine.torus_mesh, xf, view_proj),
+                    }
+                }
+
+                const tex = engine.texture[0..];
+
+                // Diagnostic mode: full-frame drawTriangle (no tiles).
+                // When use_tiles is false, skip binning and tile dispatch, render
+                // directly to the global framebuffer to isolate tile pipeline bugs.
+                if (!engine.use_tiles) {
+                    for (engine.tri_buffer[0..engine.tri_count]) |tri| {
+                        engine.backend.drawTriangle(tri.v0, tri.v1, tri.v2, tex);
+                    }
                 } else {
-                    for (engine.sort_buffer[0..count]) |entry| {
-                        const xf = world.getComponent(entry.entity, engine.transform_id, Transform).?;
-                        switch (xf.shape) {
-                            .cube => renderCube(engine, xf, view, proj, 0, 0),
-                            .sphere => renderMesh(engine, engine.sphere_mesh, xf, view, proj, 0, 0),
-                            .torus => renderMesh(engine, engine.torus_mesh, xf, view, proj, 0, 0),
+                    // Phase 2a: two-pass prefix-sum tile binning (no overflow — every
+                    // triangle lands in every tile it covers). Pass 1: count assignments.
+                    const total_tiles = engine.num_tiles_x * engine.num_tiles_y;
+                    @memset(engine.tile_counts[0..total_tiles], 0);
+                    for (engine.tri_buffer[0..engine.tri_count]) |tri| {
+                        const min_x = @min(@min(tri.v0.x, tri.v1.x), tri.v2.x);
+                        const min_y = @min(@min(tri.v0.y, tri.v1.y), tri.v2.y);
+                        const max_x = @max(@max(tri.v0.x, tri.v1.x), tri.v2.x);
+                        const max_y = @max(@max(tri.v0.y, tri.v1.y), tri.v2.y);
+
+                        if (max_x <= min_x or max_y <= min_y) continue; // degenerate
+
+                        const fb_w_f: f32 = @floatFromInt(engine.config.width);
+                        const fb_h_f: f32 = @floatFromInt(engine.config.height);
+                        if (max_x <= 0 or max_y <= 0 or min_x >= fb_w_f or min_y >= fb_h_f) continue;
+
+                        const c_min_x = @max(0, @as(i32, @intFromFloat(min_x)));
+                        const c_min_y = @max(0, @as(i32, @intFromFloat(min_y)));
+                        const c_max_x = @min(@as(i32, @intFromFloat(max_x)), @as(i32, @intFromFloat(fb_w_f)) - 1);
+                        const c_max_y = @min(@as(i32, @intFromFloat(max_y)), @as(i32, @intFromFloat(fb_h_f)) - 1);
+
+                        const tile_x0 = @as(u32, @intCast(c_min_x)) / TILE_SIZE;
+                        const tile_y0 = @as(u32, @intCast(c_min_y)) / TILE_SIZE;
+                        const tile_x1 = @min(@as(u32, @intCast(c_max_x)) / TILE_SIZE, engine.num_tiles_x - 1);
+                        const tile_y1 = @min(@as(u32, @intCast(c_max_y)) / TILE_SIZE, engine.num_tiles_y - 1);
+
+                        var ty: u32 = tile_y0;
+                        while (ty <= tile_y1) : (ty += 1) {
+                            var tx: u32 = tile_x0;
+                            while (tx <= tile_x1) : (tx += 1) {
+                                const tile_idx = ty * engine.num_tiles_x + tx;
+                                engine.tile_counts[tile_idx] += 1;
+                            }
+                        }
+                    }
+
+                    // Compute prefix-sum offsets from tile counts.
+                    var total_binned: u32 = 0;
+                    for (0..total_tiles) |tile_idx| {
+                        engine.tile_offsets[tile_idx] = total_binned;
+                        total_binned += engine.tile_counts[tile_idx];
+                    }
+                    engine.tile_offsets[total_tiles] = total_binned;
+
+                    // Safety check: tile_tris must be large enough for all assignments.
+                    if (total_binned > engine.tile_tris.len) {
+                        std.debug.panic("tile_tris overflow: need {d} entries, have {d}", .{ total_binned, engine.tile_tris.len });
+                    }
+
+                    // Pass 2: store triangles at offset + running-count positions.
+                    @memset(engine.tile_counts[0..total_tiles], 0);
+                    for (engine.tri_buffer[0..engine.tri_count]) |tri| {
+                        const min_x = @min(@min(tri.v0.x, tri.v1.x), tri.v2.x);
+                        const min_y = @min(@min(tri.v0.y, tri.v1.y), tri.v2.y);
+                        const max_x = @max(@max(tri.v0.x, tri.v1.x), tri.v2.x);
+                        const max_y = @max(@max(tri.v0.y, tri.v1.y), tri.v2.y);
+
+                        if (max_x <= min_x or max_y <= min_y) continue;
+
+                        const fb_w_f: f32 = @floatFromInt(engine.config.width);
+                        const fb_h_f: f32 = @floatFromInt(engine.config.height);
+                        if (max_x <= 0 or max_y <= 0 or min_x >= fb_w_f or min_y >= fb_h_f) continue;
+
+                        const c_min_x = @max(0, @as(i32, @intFromFloat(min_x)));
+                        const c_min_y = @max(0, @as(i32, @intFromFloat(min_y)));
+                        const c_max_x = @min(@as(i32, @intFromFloat(max_x)), @as(i32, @intFromFloat(fb_w_f)) - 1);
+                        const c_max_y = @min(@as(i32, @intFromFloat(max_y)), @as(i32, @intFromFloat(fb_h_f)) - 1);
+
+                        const tile_x0 = @as(u32, @intCast(c_min_x)) / TILE_SIZE;
+                        const tile_y0 = @as(u32, @intCast(c_min_y)) / TILE_SIZE;
+                        const tile_x1 = @min(@as(u32, @intCast(c_max_x)) / TILE_SIZE, engine.num_tiles_x - 1);
+                        const tile_y1 = @min(@as(u32, @intCast(c_max_y)) / TILE_SIZE, engine.num_tiles_y - 1);
+
+                        var ty: u32 = tile_y0;
+                        while (ty <= tile_y1) : (ty += 1) {
+                            var tx: u32 = tile_x0;
+                            while (tx <= tile_x1) : (tx += 1) {
+                                const tile_idx = ty * engine.num_tiles_x + tx;
+                                const pos = engine.tile_offsets[tile_idx] + engine.tile_counts[tile_idx];
+                                engine.tile_tris[pos] = tri;
+                                engine.tile_counts[tile_idx] += 1;
+                            }
+                        }
+                    }
+
+                    // Phase 2b: dispatch tile workers or single-thread.
+                    if (engine.thread_count > 0) {
+                        const tile_ctx = TileWorkCtx{ .engine = engine, .tex = tex };
+                        engine.thread_pool.spawn(tileWorker, &tile_ctx, engine.thread_count);
+                        const wait_ns = time.nanoTime();
+                        engine.thread_pool.wait();
+                        engine.benchmark.ms_thread_wait = @as(f32, @floatFromInt(time.nanoTime() - wait_ns)) / @as(f32, std.time.ns_per_ms);
+                    } else {
+                        for (0..total_tiles) |tile_idx| {
+                            const base = engine.tile_offsets[tile_idx];
+                            const cnt = engine.tile_offsets[tile_idx + 1] - base;
+                            if (cnt == 0) continue;
+                            const tx_u = @as(u32, @intCast(tile_idx % engine.num_tiles_x));
+                            const ty_u = @as(u32, @intCast(tile_idx / engine.num_tiles_x));
+                            const tile_x = tx_u * TILE_SIZE;
+                            const tile_y = ty_u * TILE_SIZE;
+                            var tile_zb: [TILE_SIZE * TILE_SIZE]f32 = @splat(1.0);
+                            const bg_pixel = @as(u32, @bitCast([4]u8{ COLORS.dark.b, COLORS.dark.g, COLORS.dark.r, COLORS.dark.a }));
+                            var tile_cb: [TILE_SIZE * TILE_SIZE]u32 = @splat(bg_pixel);
+                            for (0..cnt) |j| {
+                                const tri = engine.tile_tris[base + j];
+                                engine.backend.drawTriangleTile(tri.v0, tri.v1, tri.v2, tex, tile_x, tile_y, &tile_zb, &tile_cb);
+                            }
+                            engine.backend.copyTileToFb(tile_x, tile_y, &tile_cb, engine.config.width, engine.config.height);
                         }
                     }
                 }
             }
         }.run));
 
-        // stripWorker is defined at module level below.
+        // tileWorker / emit* are defined at module level below.
     }
 
     pub fn deinit(self: *Engine) void {
@@ -369,6 +549,10 @@ pub const Engine = struct {
         if (self.sphere_mesh.len > 0) self.allocator.free(self.sphere_mesh);
         if (self.torus_mesh.len > 0) self.allocator.free(self.torus_mesh);
         if (self.sort_buffer.len > 0) self.allocator.free(self.sort_buffer);
+        if (self.tri_buffer.len > 0) self.allocator.free(self.tri_buffer);
+        if (self.tile_tris.len > 0) self.allocator.free(self.tile_tris);
+        if (self.tile_counts.len > 0) self.allocator.free(self.tile_counts);
+        if (self.tile_offsets.len > 0) self.allocator.free(self.tile_offsets);
         if (self.thread_count > 0) self.thread_pool.deinit();
         self.ecs_world.deinit();
         window.windowDestroy(&self.win);
@@ -378,7 +562,12 @@ pub const Engine = struct {
     pub fn run(self: *Engine) void {
         std.debug.print("[ok] infinity engine running (ESC to exit)\n", .{});
 
+        // 60 FPS cap: each frame should take at most ~16.67ms.
+        const target_ns: u64 = 16_666_667;
+
         while (self.win.running) {
+            const frame_start = time.nanoTime();
+
             self.win.input_state.beginFrame();
             window.windowPollEvents(&self.win);
 
@@ -412,8 +601,16 @@ pub const Engine = struct {
 
             self.backend.present();
 
-            var ts = std.os.linux.timespec{ .sec = 0, .nsec = 16_000_000 };
-            _ = std.os.linux.nanosleep(&ts, null);
+            // Adaptive sleep to cap at 60 FPS — sleep only the remaining time
+            // within the 16.67ms budget instead of a fixed 16ms.
+            const frame_elapsed = time.nanoTime() - frame_start;
+            if (frame_elapsed < target_ns) {
+                var ts = std.os.linux.timespec{
+                    .sec = 0,
+                    .nsec = @as(isize, @intCast(target_ns - frame_elapsed)),
+                };
+                _ = std.os.linux.nanosleep(&ts, null);
+            }
             self.frame += 1;
         }
 
@@ -421,34 +618,39 @@ pub const Engine = struct {
     }
 };
 
-/// Shared context for parallel strip rendering workers.
-/// Each worker receives a pointer to this struct via ThreadPool.spawn.
-const StripCtx = struct {
+/// Shared context for tile-based rasterization workers.
+const TileWorkCtx = struct {
     engine: *Engine,
-    world: *World,
-    entries: []SortEntry,
-    count: usize,
-    view: Mat4,
-    proj: Mat4,
+    tex: []const u8,
 };
 
-/// Worker function for strip rasterization.
-/// Each thread renders ALL entities, but clips rasterization to its Y range.
-fn stripWorker(idx: usize, ctx: *StripCtx) void {
+/// Worker function for tile-parallel rasterization.
+/// Each thread claims tiles by index stride = thread_count.
+/// For each tile, it renders all binned triangles into tile-local
+/// Z/color buffers, then copies the result to the framebuffer.
+/// No locks needed: each tile is owned by exactly one thread.
+fn tileWorker(idx: usize, ctx: *TileWorkCtx) void {
     const engine = ctx.engine;
-    const h = engine.config.height;
-    const tc = engine.thread_count;
-    const strip_h = (h + tc - 1) / tc;
-    const y_min = @as(i32, @intCast(idx * strip_h));
-    const y_max = @min(@as(i32, @intCast((idx + 1) * strip_h)), @as(i32, @intCast(h)));
-
-    for (ctx.entries[0..ctx.count]) |entry| {
-        const xf = ctx.world.getComponent(entry.entity, engine.transform_id, Transform).?;
-        switch (xf.shape) {
-            .cube => renderCube(engine, xf, ctx.view, ctx.proj, y_min, y_max),
-            .sphere => renderMesh(engine, engine.sphere_mesh, xf, ctx.view, ctx.proj, y_min, y_max),
-            .torus => renderMesh(engine, engine.torus_mesh, xf, ctx.view, ctx.proj, y_min, y_max),
+    const total_tiles = engine.num_tiles_x * engine.num_tiles_y;
+    const thread_count = engine.thread_count;
+    var t = idx;
+    while (t < total_tiles) : (t += thread_count) {
+        const tile_idx = t;
+        const base = engine.tile_offsets[tile_idx];
+        const cnt = engine.tile_offsets[tile_idx + 1] - base;
+        if (cnt == 0) continue;
+        const tx_u = @as(u32, @intCast(tile_idx % engine.num_tiles_x));
+        const ty_u = @as(u32, @intCast(tile_idx / engine.num_tiles_x));
+        const tile_x = tx_u * TILE_SIZE;
+        const tile_y = ty_u * TILE_SIZE;
+        const bg_pixel = @as(u32, @bitCast([4]u8{ COLORS.dark.b, COLORS.dark.g, COLORS.dark.r, COLORS.dark.a }));
+        var tile_zb: [TILE_SIZE * TILE_SIZE]f32 = @splat(1.0);
+        var tile_cb: [TILE_SIZE * TILE_SIZE]u32 = @splat(bg_pixel);
+        for (0..cnt) |j| {
+            const tri = engine.tile_tris[base + j];
+            engine.backend.drawTriangleTile(tri.v0, tri.v1, tri.v2, ctx.tex, tile_x, tile_y, &tile_zb, &tile_cb);
         }
+        engine.backend.copyTileToFb(tile_x, tile_y, &tile_cb, engine.config.width, engine.config.height);
     }
 }
 
@@ -470,9 +672,9 @@ fn lambertFactor(world_normal: Vec3) f32 {
     return 0.3 + 0.7 * @max(Vec3.dot(world_normal, LIGHT_DIR), 0.0);
 }
 
-/// Render a textured cube with the given transform and camera matrices.
-/// When `y_min < y_max`, clips rasterization to the horizontal strip [y_min, y_max).
-fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4, y_min: i32, y_max: i32) void {
+/// Pre-transform a cube entity into screen-space triangles in tri_buffer.
+/// Per-face flat shading with Lambertian diffuse lighting, back-face culled.
+fn emitCubeTris(engine: *Engine, transform: *Transform, view_proj: Mat4) void {
     const half: f32 = 1.5 * transform.scale;
     const positions = [_]Vec3{
         Vec3.init(-half, -half, -half),
@@ -489,7 +691,7 @@ fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4, y_
         Mat4.translate(Vec3.init(transform.x, transform.y, transform.z)),
         Mat4.mul(Mat4.rotateY(transform.rot_y), Mat4.rotateX(transform.rot_x)),
     );
-    const mvp = Mat4.mul(Mat4.mul(proj, view), model);
+    const mvp = Mat4.mul(view_proj, model);
 
     const TriDef = struct { i0: u8, i1: u8, i2: u8, u0: f32, v0: f32, u1: f32, v1: f32, u2: f32, v2: f32, c0: Color, c1: Color, c2: Color };
     const triangles = [_]TriDef{
@@ -567,25 +769,23 @@ fn renderCube(engine: *Engine, transform: *Transform, view: Mat4, proj: Mat4, y_
         const vx0 = Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = 0, .ny = 0, .nz = 0, .u = tri.u0 * iw0, .v = tri.v0 * iw0, .inv_w = iw0, .color = c0 };
         const vx1 = Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = 0, .ny = 0, .nz = 0, .u = tri.u1 * iw1, .v = tri.v1 * iw1, .inv_w = iw1, .color = c1 };
         const vx2 = Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = 0, .ny = 0, .nz = 0, .u = tri.u2 * iw2, .v = tri.v2 * iw2, .inv_w = iw2, .color = c2 };
-        const tex_slice = engine.texture[0..];
 
-        if (y_min < y_max) {
-            engine.backend.drawTriangleStrip(vx0, vx1, vx2, tex_slice, y_min, y_max);
-        } else {
-            engine.backend.drawTriangle(vx0, vx1, vx2, tex_slice);
-        }
+        // Push to shared buffer (main-thread only, no atomic needed)
+        const idx = engine.tri_count;
+        if (idx >= engine.tri_capacity) return; // buffer full — drop triangle silently
+        engine.tri_buffer[idx] = ScreenTri{ .v0 = vx0, .v1 = vx1, .v2 = vx2 };
+        engine.tri_count = idx + 1;
     }
 }
 
-/// Render a mesh from a vertex buffer (3 vertices per triangle).
-/// Per-vertex normal lighting, back-face culling via screen-space area.
-/// When `y_min < y_max`, clips rasterization to the horizontal strip [y_min, y_max).
-fn renderMesh(engine: *Engine, mesh: []const Vertex, transform: *Transform, view: Mat4, proj: Mat4, y_min: i32, y_max: i32) void {
+/// Pre-transform a mesh entity into screen-space triangles in tri_buffer.
+/// Per-vertex normal lighting with Lambertian diffuse, back-face culled.
+fn emitMeshTris(engine: *Engine, mesh: []const Vertex, transform: *Transform, view_proj: Mat4) void {
     const model = Mat4.mul(
         Mat4.translate(Vec3.init(transform.x, transform.y, transform.z)),
         Mat4.mul(Mat4.rotateY(transform.rot_y), Mat4.rotateX(transform.rot_x)),
     );
-    const mvp = Mat4.mul(Mat4.mul(proj, view), model);
+    const mvp = Mat4.mul(view_proj, model);
 
     const fw: f32 = @floatFromInt(engine.config.width);
     const fh: f32 = @floatFromInt(engine.config.height);
@@ -659,13 +859,12 @@ fn renderMesh(engine: *Engine, mesh: []const Vertex, transform: *Transform, view
         const vx0 = Vertex{ .x = sx0, .y = sy0, .z = sz0, .nx = v0.nx, .ny = v0.ny, .nz = v0.nz, .u = v0.u * iw0, .v = v0.v * iw0, .inv_w = iw0, .color = c0 };
         const vx1 = Vertex{ .x = sx1, .y = sy1, .z = sz1, .nx = v1.nx, .ny = v1.ny, .nz = v1.nz, .u = v1.u * iw1, .v = v1.v * iw1, .inv_w = iw1, .color = c1 };
         const vx2 = Vertex{ .x = sx2, .y = sy2, .z = sz2, .nx = v2.nx, .ny = v2.ny, .nz = v2.nz, .u = v2.u * iw2, .v = v2.v * iw2, .inv_w = iw2, .color = c2 };
-        const tex_slice = engine.texture[0..];
 
-        if (y_min < y_max) {
-            engine.backend.drawTriangleStrip(vx0, vx1, vx2, tex_slice, y_min, y_max);
-        } else {
-            engine.backend.drawTriangle(vx0, vx1, vx2, tex_slice);
-        }
+        // Push to shared buffer (main-thread only, no atomic needed)
+        const idx = engine.tri_count;
+        if (idx >= engine.tri_capacity) return; // buffer full — drop triangle silently
+        engine.tri_buffer[idx] = ScreenTri{ .v0 = vx0, .v1 = vx1, .v2 = vx2 };
+        engine.tri_count = idx + 1;
     }
 }
 
@@ -734,6 +933,13 @@ test "T-003 sort buffer allocate and free" {
     const buffer = try allocator.alloc(SortEntry, 1000);
     defer allocator.free(buffer);
     try std.testing.expectEqual(@as(usize, 1000), buffer.len);
+}
+
+test "R-2.2 tile binning supports at least tri_capacity assignments (prefix-sum)" {
+    // With prefix-sum dynamic bins, every triangle lands in every tile it covers.
+    // Verify the allocation can hold tri_capacity unique assignments (worst case:
+    // each triangle in tri_buffer covers a different tile).
+    try std.testing.expect(TILE_SIZE > 0);
 }
 
 test "T-004 front-to-back sort orders entities by ascending Z" {

@@ -79,6 +79,23 @@ pub const Backend = union(enum) {
         }
     }
 
+    /// Render a triangle into a tile-local Z/color buffer.
+    /// Tile-local versions exist only on SoftwareBackend for now.
+    pub fn drawTriangleTile(self: *Backend, v0: Vertex, v1: Vertex, v2: Vertex, texture: []const u8, tile_x: u32, tile_y: u32, tile_zb: []f32, tile_cb: []u32) void {
+        switch (self.*) {
+            .software => |*b| b.drawTriangleTile(v0, v1, v2, texture, tile_x, tile_y, tile_zb, tile_cb),
+            .vulkan => {},
+        }
+    }
+
+    /// Copy a tile-local color buffer to the framebuffer.
+    pub fn copyTileToFb(self: *Backend, tile_x: u32, tile_y: u32, tile_cb: []const u32, fb_w: u32, fb_h: u32) void {
+        switch (self.*) {
+            .software => |*b| b.copyTileToFb(tile_x, tile_y, tile_cb, fb_w, fb_h),
+            .vulkan => {},
+        }
+    }
+
     /// Attach a thread pool for parallel strip rasterization.
     pub fn setPool(self: *Backend, pool: *ThreadPool, count: u32) void {
         switch (self.*) {

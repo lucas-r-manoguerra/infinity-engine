@@ -18,6 +18,11 @@ pub const TEXTURE_H = 64;
 
 pub const PIXEL_BYTES = 4;
 
+/// Tile size in pixels for tile-based rasterization.
+/// Tiles are square (TILE_SIZE × TILE_SIZE). Larger tiles reduce
+/// dispatch overhead but waste more Z/color buffer on empty regions.
+pub const TILE_SIZE = 32;
+
 /// Runtime CPU feature detection for SIMD optimizations.
 /// Uses CPUID leaf 7, EBX bit 5 to detect AVX2 on x86_64.
 /// On non-x86_64 targets, returns false.
@@ -52,7 +57,8 @@ pub const SoftwareBackend = struct {
         const xd = try c_alloc.alloc(u8, width * height * PIXEL_BYTES);
         return SoftwareBackend{
             .allocator = allocator,
-            .window = window,
+            .display = window.display,
+            .handle = window.handle,
             .fb = fb,
             .zb = zb,
             .width = width,
@@ -64,7 +70,7 @@ pub const SoftwareBackend = struct {
     }
 
     pub fn deinit(self: *SoftwareBackend) void {
-        _ = x11.XFreeGC(self.window.display, self.gc);
+        _ = x11.XFreeGC(self.display, self.gc);
         // XImage data was allocated with C allocator; free without XDestroyImage
         // (which would also free the data we want to manage ourselves).
         std.heap.c_allocator.free(self.ximage_data);
@@ -207,12 +213,12 @@ pub const SoftwareBackend = struct {
         // Copy framebuffer into pre-allocated XImage data buffer.
         @memcpy(self.ximage_data, self.fb);
 
-        const screen_num = x11.XDefaultScreen(self.window.display);
-        const visual = x11.XDefaultVisual(self.window.display, screen_num);
-        const depth = x11.XDefaultDepth(self.window.display, screen_num);
+        const screen_num = x11.XDefaultScreen(self.display);
+        const visual = x11.XDefaultVisual(self.display, screen_num);
+        const depth = x11.XDefaultDepth(self.display, screen_num);
         // Create XImage pointing to our pre-allocated buffer.
         const img = x11.XCreateImage(
-            self.window.display,
+            self.display,
             visual,
             @intCast(depth),
             x11.ZPixmap,
@@ -224,8 +230,8 @@ pub const SoftwareBackend = struct {
             0,
         ) orelse return;
         _ = x11.XPutImage(
-            self.window.display,
-            self.window.handle,
+            self.display,
+            self.handle,
             self.gc,
             img,
             0, 0, 0, 0,
@@ -234,7 +240,7 @@ pub const SoftwareBackend = struct {
         );
         // XFree only the struct — ximage_data is managed separately.
         _ = x11.XFree(@as(*anyopaque, @ptrCast(img)));
-        _ = x11.XFlush(self.window.display);
+        _ = x11.XFlush(self.display);
     }
 
     /// Store a reference to the engine's thread pool for strip rendering.
@@ -496,6 +502,155 @@ pub const SoftwareBackend = struct {
         }
     }
 
+    /// Render a triangle into a tile-local Z/color buffer at screen position (tile_x, tile_y).
+    ///
+    /// Renders into caller-provided tile-local buffers without touching the
+    /// global framebuffer. After ALL triangles for a tile have been rendered,
+    /// the caller copies tile_cb to the framebuffer.
+    ///
+    /// Contract:
+    /// - tile_zb and tile_cb must be TILE_SIZE × TILE_SIZE each
+    /// - tile_zb initialized to 1.0 (far clip), tile_cb initialized to 0 (clear)
+    /// - tile_x/tile_y are screen-space pixel coordinates of the tile's top-left corner
+    pub fn drawTriangleTile(self: *SoftwareBackend, v0: Vertex, v1: Vertex, v2: Vertex, texture: []const u8, tile_x: u32, tile_y: u32, tile_zb: []f32, tile_cb: []u32) void {
+        // ---------------------------------------------------------------
+        // 1. Sort vertices by Y (bubble sort, 3 elements)
+        // ---------------------------------------------------------------
+        var v = [_]Vertex{ v0, v1, v2 };
+        if (v[0].y > v[1].y) { const t = v[0]; v[0] = v[1]; v[1] = t; }
+        if (v[1].y > v[2].y) { const t = v[1]; v[1] = v[2]; v[2] = t; }
+        if (v[0].y > v[1].y) { const t = v[0]; v[0] = v[1]; v[1] = t; }
+
+        // ---------------------------------------------------------------
+        // 2. Compute area and early-out for back-face / degenerate
+        // ---------------------------------------------------------------
+        const area = (v[1].x - v[0].x) * (v[2].y - v[0].y) - (v[1].y - v[0].y) * (v[2].x - v[0].x);
+        if (@abs(area) < 0.001) return;
+        const inv_area = 1.0 / area;
+
+        // ---------------------------------------------------------------
+        // 3. DDA coefficients — edge function increments per pixel step
+        // ---------------------------------------------------------------
+        const dw0_dx = v[1].y - v[2].y;
+        const dw1_dx = v[2].y - v[0].y;
+        const dw2_dx = v[0].y - v[1].y;
+
+        // ---------------------------------------------------------------
+        // 4. Intersect triangle AABB with tile bounds
+        // ---------------------------------------------------------------
+        const tile_x_end = tile_x + TILE_SIZE;
+        const tile_y_end = tile_y + TILE_SIZE;
+
+        const tri_min_x = @as(i32, @intFromFloat(@min(v[0].x, @min(v[1].x, v[2].x))));
+        const tri_max_x = @as(i32, @intFromFloat(@max(v[0].x, @max(v[1].x, v[2].x))));
+        const tri_min_y = @as(i32, @intFromFloat(v[0].y));
+        const tri_max_y = @as(i32, @intFromFloat(v[2].y));
+
+        const y_start = @max(@max(tri_min_y, @as(i32, @intCast(tile_y))), 0);
+        const y_end = @min(@min(tri_max_y, @as(i32, @intCast(tile_y_end - 1))), @as(i32, @intCast(self.height - 1)));
+        if (y_start > y_end) return;
+
+        const min_x = @max(@max(tri_min_x, @as(i32, @intCast(tile_x))), 0);
+        const max_x = @min(@min(tri_max_x, @as(i32, @intCast(tile_x_end - 1))), @as(i32, @intCast(self.width - 1)));
+        if (min_x > max_x) return;
+
+        // Pre-fetch vertex attributes.
+        const z0 = v[0].z; const z1 = v[1].z; const z2 = v[2].z;
+        const r0: f32 = @floatFromInt(v[0].color.r);
+        const r1: f32 = @floatFromInt(v[1].color.r);
+        const r2: f32 = @floatFromInt(v[2].color.r);
+        const g0: f32 = @floatFromInt(v[0].color.g);
+        const g1: f32 = @floatFromInt(v[1].color.g);
+        const g2: f32 = @floatFromInt(v[2].color.g);
+        const b0: f32 = @floatFromInt(v[0].color.b);
+        const b1: f32 = @floatFromInt(v[1].color.b);
+        const b2: f32 = @floatFromInt(v[2].color.b);
+        const tu0 = v[0].u; const tu1 = v[1].u; const tu2 = v[2].u;
+        const tv0 = v[0].v; const tv1 = v[1].v; const tv2 = v[2].v;
+
+        const iarea = inv_area;
+        const dz_dx = (dw0_dx * z0 + dw1_dx * z1 + dw2_dx * z2) * iarea;
+        const dr_dx = (dw0_dx * r0 + dw1_dx * r1 + dw2_dx * r2) * iarea;
+        const dg_dx = (dw0_dx * g0 + dw1_dx * g1 + dw2_dx * g2) * iarea;
+        const db_dx = (dw0_dx * b0 + dw1_dx * b1 + dw2_dx * b2) * iarea;
+        const du_dx = (dw0_dx * tu0 + dw1_dx * tu1 + dw2_dx * tu2) * iarea;
+        const dv_dx = (dw0_dx * tv0 + dw1_dx * tv1 + dw2_dx * tv2) * iarea;
+
+        // ---------------------------------------------------------------
+        // 5. Scanline fill — render into tile-local Z/color buffers
+        // ---------------------------------------------------------------
+        const local_pitch: u32 = TILE_SIZE;
+        const tile_x_i: i32 = @intCast(tile_x);
+        const tile_y_i: i32 = @intCast(tile_y);
+
+        var y: i32 = y_start;
+        while (y <= y_end) : (y += 1) {
+            const fy: f32 = @floatFromInt(y);
+
+            // Compute w0,w1,w2 at start-of-scanline (x = min_x).
+            const fx0: f32 = @floatFromInt(min_x);
+            var w0 = (v[2].x - v[1].x) * (fy - v[1].y) - (v[2].y - v[1].y) * (fx0 - v[1].x);
+            var w1 = (v[0].x - v[2].x) * (fy - v[2].y) - (v[0].y - v[2].y) * (fx0 - v[2].x);
+            var w2 = (v[1].x - v[0].x) * (fy - v[0].y) - (v[1].y - v[0].y) * (fx0 - v[0].x);
+
+            var scan_z = (w0 * z0 + w1 * z1 + w2 * z2) * iarea;
+            var scan_r = (w0 * r0 + w1 * r1 + w2 * r2) * iarea;
+            var scan_g = (w0 * g0 + w1 * g1 + w2 * g2) * iarea;
+            var scan_b = (w0 * b0 + w1 * b1 + w2 * b2) * iarea;
+            var scan_u = (w0 * tu0 + w1 * tu1 + w2 * tu2) * iarea;
+            var scan_v = (w0 * tv0 + w1 * tv1 + w2 * tv2) * iarea;
+
+            const local_y = @as(u32, @intCast(y - tile_y_i));
+            const tile_row_base = local_y * local_pitch;
+
+            var x: i32 = min_x;
+            @setRuntimeSafety(false);
+            while (x <= max_x) : (x += 1) {
+                if (w0 >= 0 and w1 >= 0 and w2 >= 0) {
+                    const local_x = @as(u32, @intCast(x - tile_x_i));
+                    const tile_idx = tile_row_base + local_x;
+                    if (scan_z < tile_zb[tile_idx]) {
+                        tile_zb[tile_idx] = scan_z;
+                        const ir = @max(0, @min(255, @as(i32, @intFromFloat(scan_r))));
+                        const ig = @max(0, @min(255, @as(i32, @intFromFloat(scan_g))));
+                        const ib = @max(0, @min(255, @as(i32, @intFromFloat(scan_b))));
+                        const tex_color = sampleTexture(texture, scan_u, scan_v);
+                        const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
+                        const final_color = modulateColor(vert_color, tex_color);
+                        tile_cb[tile_idx] = @bitCast([4]u8{ final_color.b, final_color.g, final_color.r, 255 });
+                    }
+                }
+                w0 += dw0_dx;
+                w1 += dw1_dx;
+                w2 += dw2_dx;
+                scan_z += dz_dx;
+                scan_r += dr_dx;
+                scan_g += dg_dx;
+                scan_b += db_dx;
+                scan_u += du_dx;
+                scan_v += dv_dx;
+            }
+            @setRuntimeSafety(true);
+        }
+    }
+
+    /// Copy a TILE_SIZE × TILE_SIZE color buffer to the framebuffer at (tile_x, tile_y).
+    /// Clamps to framebuffer bounds for edge tiles.
+    pub fn copyTileToFb(self: *SoftwareBackend, tile_x: u32, tile_y: u32, tile_cb: []const u32, fb_w: u32, fb_h: u32) void {
+        const fb_u32: []u32 = @ptrCast(@alignCast(self.fb));
+        var row: u32 = 0;
+        while (row < TILE_SIZE) : (row += 1) {
+            const dst_row = tile_y + row;
+            if (dst_row >= fb_h) break;
+            const dst_start = dst_row * fb_w + tile_x;
+            const src_start = row * TILE_SIZE;
+            const copy_cols = @min(TILE_SIZE, fb_w - tile_x);
+            const src_slice = tile_cb[src_start..][0..copy_cols];
+            const dst_slice = fb_u32[dst_start..][0..copy_cols];
+            @memcpy(dst_slice, src_slice);
+        }
+    }
+
     fn putPixel(self: *SoftwareBackend, x: i32, y: i32, color: Color) void {
         const w: i32 = @intCast(self.width);
         const h: i32 = @intCast(self.height);
@@ -526,7 +681,12 @@ pub const SoftwareBackend = struct {
     // ═══════════════════════════════════════════════════════════════
 
     allocator: std.mem.Allocator,
-    window: *platform.Window,
+    /// X11 Display pointer — NOT the full Window struct (avoids a dangling pointer
+    /// when Engine is returned from init() and the backend self-pointer becomes stale).
+    /// Set once during init(), never modified.
+    display: *x11.Display,
+    /// X11 Window handle for XPutImage.
+    handle: x11.Window,
     fb: []u8,
     zb: []f32,
     width: u32,

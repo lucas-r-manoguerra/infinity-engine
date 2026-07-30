@@ -17,22 +17,30 @@ const Color = @import("core/color.zig").Color;
 const COLORS = @import("core/color.zig").COLORS;
 const Vertex = @import("renderer/renderer.zig").Vertex;
 const texture = @import("renderer/software.zig");
+const window = @import("platform/window.zig");
 
 const allocator = std.heap.page_allocator;
 const WIDTH = 320;
 const HEIGHT = 240;
+
+// Single window shared across all benchmarks (created once in run()).
+var bench_window: ?*window.Window = null;
 
 // Each benchmark uses its own iteration count so total runtime stays reasonable.
 const SMALL_ITERS = 10_000;
 const MEDIUM_ITERS = 1_000;
 const LARGE_ITERS = 100;
 
+fn createBackend() SoftwareBackend {
+    return SoftwareBackend.init(allocator, bench_window.?, WIDTH, HEIGHT) catch unreachable;
+}
+
 // ---------------------------------------------------------------------------
 // Clear (beginFrame)
 // ---------------------------------------------------------------------------
 
 fn benchBeginFrame() void {
-    var fb = SoftwareBackend.init(allocator, .{ .width = WIDTH, .height = HEIGHT }) catch unreachable;
+    var fb = createBackend();
     defer fb.deinit();
 
     for (0..1000) |_| {
@@ -45,7 +53,7 @@ fn benchBeginFrame() void {
 // ---------------------------------------------------------------------------
 
 fn benchEmptyFrame() void {
-    var fb = SoftwareBackend.init(allocator, .{ .width = WIDTH, .height = HEIGHT }) catch unreachable;
+    var fb = createBackend();
     defer fb.deinit();
 
     for (0..1000) |_| {
@@ -61,12 +69,12 @@ fn benchEmptyFrame() void {
 // ---------------------------------------------------------------------------
 
 fn benchDrawSmall() void {
-    var fb = SoftwareBackend.init(allocator, .{ .width = WIDTH, .height = HEIGHT }) catch unreachable;
+    var fb = createBackend();
     defer fb.deinit();
 
-    const v0 = Vertex{ .x = 145, .y = 210, .z = 0, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v1 = Vertex{ .x = 175, .y = 210, .z = 0, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v2 = Vertex{ .x = 160, .y = 180, .z = 0, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
+    const v0 = Vertex{ .x = 145, .y = 210, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v1 = Vertex{ .x = 175, .y = 210, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v2 = Vertex{ .x = 160, .y = 180, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
     const tex = texture.generateCheckerboard();
 
     for (0..SMALL_ITERS) |_| {
@@ -82,12 +90,12 @@ fn benchDrawSmall() void {
 // ---------------------------------------------------------------------------
 
 fn benchDrawMedium() void {
-    var fb = SoftwareBackend.init(allocator, .{ .width = WIDTH, .height = HEIGHT }) catch unreachable;
+    var fb = createBackend();
     defer fb.deinit();
 
-    const v0 = Vertex{ .x = 85, .y = 190, .z = 0, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v1 = Vertex{ .x = 235, .y = 190, .z = 0, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v2 = Vertex{ .x = 160, .y = 40, .z = 0, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
+    const v0 = Vertex{ .x = 85, .y = 190, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v1 = Vertex{ .x = 235, .y = 190, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v2 = Vertex{ .x = 160, .y = 40, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
     const tex = texture.generateCheckerboard();
 
     for (0..MEDIUM_ITERS) |_| {
@@ -103,12 +111,12 @@ fn benchDrawMedium() void {
 // ---------------------------------------------------------------------------
 
 fn benchDrawLarge() void {
-    var fb = SoftwareBackend.init(allocator, .{ .width = WIDTH, .height = HEIGHT }) catch unreachable;
+    var fb = createBackend();
     defer fb.deinit();
 
-    const v0 = Vertex{ .x = 10, .y = 230, .z = 0, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v1 = Vertex{ .x = 310, .y = 230, .z = 0, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
-    const v2 = Vertex{ .x = 160, .y = 10, .z = 0, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
+    const v0 = Vertex{ .x = 10, .y = 230, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v1 = Vertex{ .x = 310, .y = 230, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 1, .v = 0, .inv_w = 1, .color = COLORS.white };
+    const v2 = Vertex{ .x = 160, .y = 10, .z = 0, .nx = 0, .ny = 0, .nz = -1, .u = 0.5, .v = 1, .inv_w = 1, .color = COLORS.white };
     const tex = texture.generateCheckerboard();
 
     for (0..LARGE_ITERS) |_| {
@@ -123,6 +131,13 @@ fn benchDrawLarge() void {
 
 pub fn run() void {
     std.debug.print("\n  ~ renderer benchmarks ~\n", .{});
+
+    var win = window.windowCreate("infinity-bench", WIDTH, HEIGHT) orelse {
+        std.debug.print("  ! window creation failed, skipping renderer benchmarks\n", .{});
+        return;
+    };
+    defer window.windowDestroy(&win);
+    bench_window = &win;
 
     bench("software.beginFrame", benchBeginFrame, 1000);
     bench("software.emptyFrame", benchEmptyFrame, 1000);

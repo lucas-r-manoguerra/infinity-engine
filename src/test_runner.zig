@@ -10,6 +10,11 @@ const std = @import("std");
 test { _ = @import("core/time.zig"); }
 test { _ = @import("core/memory.zig"); }
 test { _ = @import("core/loop.zig"); }
+test { _ = @import("core/thread_pool.zig"); }
+
+// Dedicated test files
+test { _ = @import("tests/core/thread_pool_test.zig"); }
+test { _ = @import("tests/renderer/tile_renderer_test.zig"); }
 
 // Math
 test { _ = @import("math/vec3.zig"); }
