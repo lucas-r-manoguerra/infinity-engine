@@ -115,10 +115,16 @@ test "T-006 drawTriangleStrip 1000-frame correctness vs drawTriangle" {
     // Use two backends — one for single-threaded, one for strip rendering.
     // Using separate backends avoids cross-contamination and lets us
     // hash each independently.
+    // Force use_simd=false on both: we are testing strip-vs-single correctness,
+    // not SIMD determinism. The SIMD path uses multiply-based offsets while
+    // the scalar DDA path uses cumulative addition, producing bit-different
+    // (but equally valid) floating-point results for the same pixel.
     var single_backend = try SoftwareBackend.init(testing.allocator, &win, W, H);
+    single_backend.use_simd = false;
     defer single_backend.deinit();
 
     var strip_backend = try SoftwareBackend.init(testing.allocator, &win, W, H);
+    strip_backend.use_simd = false;
     defer strip_backend.deinit();
 
     // Init thread pool for strip rendering.
@@ -189,9 +195,11 @@ test "T-006c drawTriangleStrip edge-case: triangle at strip seam" {
     defer window.windowDestroy(&win);
 
     var single_backend = try SoftwareBackend.init(testing.allocator, &win, W, H);
+    single_backend.use_simd = false;
     defer single_backend.deinit();
 
     var strip_backend = try SoftwareBackend.init(testing.allocator, &win, W, H);
+    strip_backend.use_simd = false;
     defer strip_backend.deinit();
 
     var pool = try ThreadPool.init(testing.allocator, 4);

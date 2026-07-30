@@ -10,12 +10,36 @@ const Vertex = @import("renderer.zig").Vertex;
 const ThreadPool = @import("../core/thread_pool.zig").ThreadPool;
 const x11 = @import("../platform/x11.zig");
 const platform = @import("../platform/window.zig");
+const builtin = @import("builtin");
 const testing = std.testing;
 
 pub const TEXTURE_W = 64;
 pub const TEXTURE_H = 64;
 
 pub const PIXEL_BYTES = 4;
+
+/// Runtime CPU feature detection for SIMD optimizations.
+/// Uses CPUID leaf 7, EBX bit 5 to detect AVX2 on x86_64.
+/// On non-x86_64 targets, returns false.
+pub fn detectAvx2() bool {
+    if (comptime builtin.cpu.arch != .x86_64) return false;
+    var ebx: u32 = undefined;
+    // CPUID leaf 7, subleaf 0 → EBX bit 5 = AVX2
+    // Keep EAX/ECX/EDX as unused outputs so the compiler does not
+    // assume those registers are preserved.
+    var eax_unused: u32 = undefined;
+    var ecx_unused: u32 = undefined;
+    var edx_unused: u32 = undefined;
+    asm volatile ("cpuid"
+        : [_] "={eax}" (eax_unused),
+          [_] "={ebx}" (ebx),
+          [_] "={ecx}" (ecx_unused),
+          [_] "={edx}" (edx_unused),
+        : [_] "{eax}" (7),
+          [_] "{ecx}" (0),
+    );
+    return (ebx & (1 << 5)) != 0;
+}
 
 pub const SoftwareBackend = struct {
     pub fn init(allocator: std.mem.Allocator, window: *platform.Window, width: u32, height: u32) !SoftwareBackend {
@@ -35,6 +59,7 @@ pub const SoftwareBackend = struct {
             .height = height,
             .gc = gc,
             .ximage_data = xd,
+            .use_simd = detectAvx2(),
         };
     }
 
@@ -292,57 +317,182 @@ pub const SoftwareBackend = struct {
         const dv_dx = (dw0_dx * tv0 + dw1_dx * tv1 + dw2_dx * tv2) * iarea;
 
         // ---------------------------------------------------------------
-        // 5. Scanline fill — clipped to strip bounds
+        // 5. Scanline fill — per-scanline exact edge function + X-DDA
         // ---------------------------------------------------------------
+        // Same as drawTriangle: compute edge function from scratch at each
+        // scanline for bit-exact pixel coverage. No Y-DDA drift.
         var y: i32 = y_start;
         while (y <= y_end) : (y += 1) {
             const fy: f32 = @floatFromInt(y);
             const y_base = @as(usize, @intCast(y)) * @as(usize, self.width);
 
-            // Compute w0,w1,w2 at start-of-scanline (x = min_x).
+            // Exact edge function at (min_x, y) — same as drawTriangle.
             const fx0: f32 = @floatFromInt(min_x);
             var w0 = (v[2].x - v[1].x) * (fy - v[1].y) - (v[2].y - v[1].y) * (fx0 - v[1].x);
             var w1 = (v[0].x - v[2].x) * (fy - v[2].y) - (v[0].y - v[2].y) * (fx0 - v[2].x);
             var w2 = (v[1].x - v[0].x) * (fy - v[0].y) - (v[1].y - v[0].y) * (fx0 - v[0].x);
 
-            var scan_z = (w0 * z0 + w1 * z1 + w2 * z2) * iarea;
-            var scan_r = (w0 * r0 + w1 * r1 + w2 * r2) * iarea;
-            var scan_g = (w0 * g0 + w1 * g1 + w2 * g2) * iarea;
-            var scan_b = (w0 * b0 + w1 * b1 + w2 * b2) * iarea;
-            var scan_u = (w0 * tu0 + w1 * tu1 + w2 * tu2) * iarea;
-            var scan_v = (w0 * tv0 + w1 * tv1 + w2 * tv2) * iarea;
+            if (self.use_simd) {
+                // SIMD path: 8 pixels per iteration via @Vector(8, f32),
+                // with X-DDA stepping between batches.
+                const Vec8f = @Vector(8, f32);
+                const offsets: Vec8f = .{ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
+                const Z = Vec8f;
+                const v_dw0: Z = @splat(@as(f32, dw0_dx));
+                const v_dw1: Z = @splat(@as(f32, dw1_dx));
+                const v_dw2: Z = @splat(@as(f32, dw2_dx));
+                const v_z0: Z = @splat(z0);
+                const v_z1: Z = @splat(z1);
+                const v_z2: Z = @splat(z2);
+                const v_r0: Z = @splat(r0);
+                const v_r1: Z = @splat(r1);
+                const v_r2: Z = @splat(r2);
+                const v_g0: Z = @splat(g0);
+                const v_g1: Z = @splat(g1);
+                const v_g2: Z = @splat(g2);
+                const v_b0: Z = @splat(b0);
+                const v_b1: Z = @splat(b1);
+                const v_b2: Z = @splat(b2);
+                const v_tu0: Z = @splat(tu0);
+                const v_tu1: Z = @splat(tu1);
+                const v_tu2: Z = @splat(tu2);
+                const v_tv0: Z = @splat(tv0);
+                const v_tv1: Z = @splat(tv1);
+                const v_tv2: Z = @splat(tv2);
+                const v_iarea: Z = @splat(iarea);
 
-            var x: i32 = min_x;
-            @setRuntimeSafety(false);
-            while (x <= max_x) : (x += 1) {
-                if (w0 >= 0 and w1 >= 0 and w2 >= 0) {
-                    const zb_idx = y_base + @as(usize, @intCast(x));
-                    if (scan_z < zb[zb_idx]) {
-                        zb[zb_idx] = scan_z;
-                        const ir = @max(0, @min(255, @as(i32, @intFromFloat(scan_r))));
-                        const ig = @max(0, @min(255, @as(i32, @intFromFloat(scan_g))));
-                        const ib = @max(0, @min(255, @as(i32, @intFromFloat(scan_b))));
-                        const tex_color = sampleTexture(texture, scan_u, scan_v);
-                        const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
-                        const final_color = modulateColor(vert_color, tex_color);
-                        const fb_idx = zb_idx * PIXEL_BYTES;
-                        fb[fb_idx] = final_color.b;
-                        fb[fb_idx + 1] = final_color.g;
-                        fb[fb_idx + 2] = final_color.r;
-                        fb[fb_idx + 3] = 255;
+                // X-DDA state: start at (min_x, y).
+                var x_simd: f32 = @floatFromInt(min_x);
+                var w0_base = w0;
+                var w1_base = w1;
+                var w2_base = w2;
+                const vec_end = max_x - 7;
+
+                var x: i32 = min_x;
+                @setRuntimeSafety(false);
+                while (x <= vec_end) : (x += 8) {
+                    const w0v: Z = @as(Z, @splat(w0_base)) + v_dw0 * offsets;
+                    const w1v: Z = @as(Z, @splat(w1_base)) + v_dw1 * offsets;
+                    const w2v: Z = @as(Z, @splat(w2_base)) + v_dw2 * offsets;
+                    const zero: Z = @splat(0.0);
+                    const inside: @Vector(8, bool) = (w0v >= zero) & (w1v >= zero) & (w2v >= zero);
+                    if (@reduce(.Or, inside) == false) {
+                        x_simd += 8.0;
+                        w0_base = w0 + dw0_dx * x_simd;
+                        w1_base = w1 + dw1_dx * x_simd;
+                        w2_base = w2 + dw2_dx * x_simd;
+                        continue;
+                    }
+
+                    const zv: Z = (w0v * v_z0 + w1v * v_z1 + w2v * v_z2) * v_iarea;
+                    const rv: Z = (w0v * v_r0 + w1v * v_r1 + w2v * v_r2) * v_iarea;
+                    const gv: Z = (w0v * v_g0 + w1v * v_g1 + w2v * v_g2) * v_iarea;
+                    const bv: Z = (w0v * v_b0 + w1v * v_b1 + w2v * v_b2) * v_iarea;
+                    const uvv: Z = (w0v * v_tu0 + w1v * v_tu1 + w2v * v_tu2) * v_iarea;
+                    const vvv: Z = (w0v * v_tv0 + w1v * v_tv1 + w2v * v_tv2) * v_iarea;
+
+                    inline for (0..8) |i| {
+                        if (inside[i]) {
+                            const ii: i32 = @intCast(i);
+                            const zb_idx = y_base + @as(usize, @intCast(x + ii));
+                            if (zv[i] < zb[zb_idx]) {
+                                zb[zb_idx] = zv[i];
+                                const ir = @max(0, @min(255, @as(i32, @intFromFloat(rv[i]))));
+                                const ig = @max(0, @min(255, @as(i32, @intFromFloat(gv[i]))));
+                                const ib = @max(0, @min(255, @as(i32, @intFromFloat(bv[i]))));
+                                const tex_color = sampleTexture(texture, uvv[i], vvv[i]);
+                                const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
+                                const final_color = modulateColor(vert_color, tex_color);
+                                const fb_idx = zb_idx * PIXEL_BYTES;
+                                fb[fb_idx + 0] = final_color.b;
+                                fb[fb_idx + 1] = final_color.g;
+                                fb[fb_idx + 2] = final_color.r;
+                                fb[fb_idx + 3] = 255;
+                            }
+                        }
+                    }
+                    x_simd += 8.0;
+                    w0_base = w0 + dw0_dx * x_simd;
+                    w1_base = w1 + dw1_dx * x_simd;
+                    w2_base = w2 + dw2_dx * x_simd;
+                }
+                // Scalar remainder for last <8 pixels per scanline.
+                {
+                    var w0_r = w0_base;
+                    var w1_r = w1_base;
+                    var w2_r = w2_base;
+                    var z_r = (w0_r * z0 + w1_r * z1 + w2_r * z2) * iarea;
+                    var r_r = (w0_r * r0 + w1_r * r1 + w2_r * r2) * iarea;
+                    var g_r = (w0_r * g0 + w1_r * g1 + w2_r * g2) * iarea;
+                    var b_r = (w0_r * b0 + w1_r * b1 + w2_r * b2) * iarea;
+                    var u_r = (w0_r * tu0 + w1_r * tu1 + w2_r * tu2) * iarea;
+                    var v_r = (w0_r * tv0 + w1_r * tv1 + w2_r * tv2) * iarea;
+                    while (x <= max_x) : (x += 1) {
+                        if (w0_r >= 0 and w1_r >= 0 and w2_r >= 0) {
+                            const zb_idx = y_base + @as(usize, @intCast(x));
+                            if (z_r < zb[zb_idx]) {
+                                zb[zb_idx] = z_r;
+                                const ir = @max(0, @min(255, @as(i32, @intFromFloat(r_r))));
+                                const ig = @max(0, @min(255, @as(i32, @intFromFloat(g_r))));
+                                const ib = @max(0, @min(255, @as(i32, @intFromFloat(b_r))));
+                                const tex_color = sampleTexture(texture, u_r, v_r);
+                                const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
+                                const final_color = modulateColor(vert_color, tex_color);
+                                const fb_idx = zb_idx * PIXEL_BYTES;
+                                fb[fb_idx + 0] = final_color.b;
+                                fb[fb_idx + 1] = final_color.g;
+                                fb[fb_idx + 2] = final_color.r;
+                                fb[fb_idx + 3] = 255;
+                            }
+                        }
+                        w0_r += dw0_dx; w1_r += dw1_dx; w2_r += dw2_dx;
+                        z_r += dz_dx; r_r += dr_dx; g_r += dg_dx; b_r += db_dx; u_r += du_dx; v_r += dv_dx;
                     }
                 }
-                w0 += dw0_dx;
-                w1 += dw1_dx;
-                w2 += dw2_dx;
-                scan_z += dz_dx;
-                scan_r += dr_dx;
-                scan_g += dg_dx;
-                scan_b += db_dx;
-                scan_u += du_dx;
-                scan_v += dv_dx;
+                @setRuntimeSafety(true);
+            } else {
+                // Scalar path: exact edge function per scanline (same as drawTriangle).
+                // Recompute attributes from exact edge function too, since these are
+                // used as the pixel-level loop state and must match drawTriangle exactly.
+                var scan_z = (w0 * z0 + w1 * z1 + w2 * z2) * iarea;
+                var scan_r = (w0 * r0 + w1 * r1 + w2 * r2) * iarea;
+                var scan_g = (w0 * g0 + w1 * g1 + w2 * g2) * iarea;
+                var scan_b = (w0 * b0 + w1 * b1 + w2 * b2) * iarea;
+                var scan_u = (w0 * tu0 + w1 * tu1 + w2 * tu2) * iarea;
+                var scan_v = (w0 * tv0 + w1 * tv1 + w2 * tv2) * iarea;
+
+                var x: i32 = min_x;
+                @setRuntimeSafety(false);
+                while (x <= max_x) : (x += 1) {
+                    if (w0 >= 0 and w1 >= 0 and w2 >= 0) {
+                        const zb_idx = y_base + @as(usize, @intCast(x));
+                        if (scan_z < zb[zb_idx]) {
+                            zb[zb_idx] = scan_z;
+                            const ir = @max(0, @min(255, @as(i32, @intFromFloat(scan_r))));
+                            const ig = @max(0, @min(255, @as(i32, @intFromFloat(scan_g))));
+                            const ib = @max(0, @min(255, @as(i32, @intFromFloat(scan_b))));
+                            const tex_color = sampleTexture(texture, scan_u, scan_v);
+                            const vert_color = Color{ .b = @truncate(ib), .g = @truncate(ig), .r = @truncate(ir), .a = 255 };
+                            const final_color = modulateColor(vert_color, tex_color);
+                            const fb_idx = zb_idx * PIXEL_BYTES;
+                            fb[fb_idx + 0] = final_color.b;
+                            fb[fb_idx + 1] = final_color.g;
+                            fb[fb_idx + 2] = final_color.r;
+                            fb[fb_idx + 3] = 255;
+                        }
+                    }
+                    w0 += dw0_dx;
+                    w1 += dw1_dx;
+                    w2 += dw2_dx;
+                    scan_z += dz_dx;
+                    scan_r += dr_dx;
+                    scan_g += dg_dx;
+                    scan_b += db_dx;
+                    scan_u += du_dx;
+                    scan_v += dv_dx;
+                }
+                @setRuntimeSafety(true);
             }
-            @setRuntimeSafety(true);
         }
     }
 
@@ -387,6 +537,9 @@ pub const SoftwareBackend = struct {
     /// Thread pool borrowed from Engine (strip rendering).
     pool: ?*ThreadPool = null,
     thread_count: u32 = 0,
+
+    /// SIMD acceleration enabled (AVX2 @Vector(8, f32) inner loop).
+    use_simd: bool = false,
 };
 
 /// Generate a sphere mesh as un-indexed triangles using a lat/long grid.
