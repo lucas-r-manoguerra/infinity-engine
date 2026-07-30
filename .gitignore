@@ -1,0 +1,22 @@
+# == SDD artifacts ==
+opencode.json
+openspec/
+.alt
+
+# == Zig build artifacts ==
+.zig-cache/
+zig-out/
+*.o
+*.obj
+*.lib
+*.dll
+*.so
+*.dylib
+*.exp
+
+# == OS files ==
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
