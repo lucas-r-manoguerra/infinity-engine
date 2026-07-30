@@ -34,6 +34,7 @@ test { _ = @import("renderer/software.zig"); }
 test { _ = @import("tests/renderer/vertex_test.zig"); }
 test { _ = @import("tests/renderer/mesh_generation_test.zig"); }
 test { _ = @import("tests/renderer/brick_texture_test.zig"); }
+test { _ = @import("tests/renderer/draw_triangle_test.zig"); }
 test { _ = @import("tests/runtime/engine_scene_test.zig"); }
 test { _ = @import("renderer/vk.zig"); }
 test { _ = @import("renderer/vk_loader.zig"); }

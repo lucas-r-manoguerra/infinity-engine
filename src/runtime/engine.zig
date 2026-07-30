@@ -61,6 +61,12 @@ const Parent = struct { parent: Entity };
 
 const TEXTURE_SIZE = software.TEXTURE_W * software.TEXTURE_H * 4;
 
+/// Sort entry for front-to-back entity sorting (view-space Z, entity handle).
+const SortEntry = struct {
+    z: f32,
+    entity: Entity,
+};
+
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     backend: RenderBackend,
@@ -78,6 +84,9 @@ pub const Engine = struct {
     rotation_speed_id: ComponentId,
     orbit_id: ComponentId,
     parent_id: ComponentId,
+
+    // Sort buffer for front-to-back entity sorting
+    sort_buffer: []SortEntry = &[_]SortEntry{},
 
     // Benchmark
     benchmark: diagnostics.Benchmark,
@@ -118,6 +127,14 @@ pub const Engine = struct {
             std.debug.print("[FAIL] World init: {}\n", .{err});
             return error.WindowInitFailed;
         };
+
+        // 4. Allocate entity sort buffer (sized for max entities, reused each frame)
+        engine.sort_buffer = allocator.alloc(SortEntry, engine.ecs_world.max_entities) catch |err| {
+            std.debug.print("[FAIL] Sort buffer alloc: {}\n", .{err});
+            return error.WindowInitFailed;
+        };
+        errdefer allocator.free(engine.sort_buffer);
+
         return engine;
     }
 
@@ -272,7 +289,8 @@ pub const Engine = struct {
             }
         }.run));
 
-        // Render system — renders all entities with Transform (shape-based dispatch)
+        // Render system — renders all entities with Transform (shape-based dispatch).
+        // Front-to-back sorted by view-space Z for early Z rejection (overdraw reduction).
         try self.ecs_world.addSystem(SystemMod.System.init("render", .render, self, struct {
             fn run(ctx: ?*anyopaque, world: *World, dt: f64) void {
                 _ = dt;
@@ -283,8 +301,28 @@ pub const Engine = struct {
                 const proj = Mat4.perspective(std.math.pi / 3.0, w_f32 / h_f32, 0.1, 100.0);
 
                 var q = Query.init(world, &[_]ComponentId{engine.transform_id});
+
+                // First pass: collect view-space Z for each entity
+                var count: usize = 0;
                 while (q.next()) |entity| {
                     const xf = world.getComponent(entity, engine.transform_id, Transform).?;
+                    engine.sort_buffer[count] = .{
+                        .z = view.data[2] * xf.x + view.data[6] * xf.y + view.data[10] * xf.z + view.data[14],
+                        .entity = entity,
+                    };
+                    count += 1;
+                }
+
+                // Sort front-to-back (ascending Z — closer first for early Z rejection)
+                std.sort.block(SortEntry, engine.sort_buffer[0..count], {}, struct {
+                    fn lessThan(_: void, a: SortEntry, b: SortEntry) bool {
+                        return a.z < b.z;
+                    }
+                }.lessThan);
+
+                // Second pass: render in sorted order
+                for (engine.sort_buffer[0..count]) |entry| {
+                    const xf = world.getComponent(entry.entity, engine.transform_id, Transform).?;
                     switch (xf.shape) {
                         .cube => renderCube(engine, xf, view, proj),
                         .sphere => renderMesh(engine, engine.sphere_mesh, xf, view, proj),
@@ -299,6 +337,7 @@ pub const Engine = struct {
         // Free dynamically allocated meshes (if postInit was called)
         if (self.sphere_mesh.len > 0) self.allocator.free(self.sphere_mesh);
         if (self.torus_mesh.len > 0) self.allocator.free(self.torus_mesh);
+        if (self.sort_buffer.len > 0) self.allocator.free(self.sort_buffer);
         self.ecs_world.deinit();
         window.windowDestroy(&self.win);
         self.backend.deinit();
@@ -614,4 +653,28 @@ test "ClipVert and clipTransform work" {
     try std.testing.expectEqual(@as(f32, 2), cv.y);
     try std.testing.expectEqual(@as(f32, 3), cv.z);
     try std.testing.expectEqual(@as(f32, 1), cv.w);
+}
+
+test "T-003 sort buffer allocate and free" {
+    // Verify SortEntry allocation pattern works (no leaks, no UB)
+    const allocator = std.testing.allocator;
+    const buffer = try allocator.alloc(SortEntry, 1000);
+    defer allocator.free(buffer);
+    try std.testing.expectEqual(@as(usize, 1000), buffer.len);
+}
+
+test "T-004 front-to-back sort orders entities by ascending Z" {
+    var entries = [_]SortEntry{
+        .{ .z = 10.0, .entity = Entity.init(3, 0) },
+        .{ .z = 1.0, .entity = Entity.init(1, 0) },
+        .{ .z = 5.0, .entity = Entity.init(2, 0) },
+    };
+    std.sort.block(SortEntry, &entries, {}, struct {
+        fn lessThan(_: void, a: SortEntry, b: SortEntry) bool {
+            return a.z < b.z;
+        }
+    }.lessThan);
+    try std.testing.expectEqual(@as(u32, 1), entries[0].entity.index);
+    try std.testing.expectEqual(@as(u32, 2), entries[1].entity.index);
+    try std.testing.expectEqual(@as(u32, 3), entries[2].entity.index);
 }

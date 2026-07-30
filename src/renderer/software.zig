@@ -140,6 +140,10 @@ pub const SoftwareBackend = struct {
             var scan_v = (w0 * tv0 + w1 * tv1 + w2 * tv2) * iarea;
 
             var x: i32 = min_x;
+            // Safety OFF for the per-pixel hot path: ~7 bounds checks per pixel.
+            // Setup code (above) and the outer scanline loop retain safety.
+            // Visual output is bit-identical (proven by golden frame test).
+            @setRuntimeSafety(false);
             while (x <= max_x) : (x += 1) {
                 // All triangles arrive CCW-culled (back-face tested in renderCube).
                 if (w0 >= 0 and w1 >= 0 and w2 >= 0) {
@@ -169,6 +173,7 @@ pub const SoftwareBackend = struct {
                 scan_u += du_dx;
                 scan_v += dv_dx;
             }
+            @setRuntimeSafety(true);
         }
     }
 
