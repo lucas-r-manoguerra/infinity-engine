@@ -1,0 +1,25 @@
+{
+  "name": "Infinity Engine - F0 (C++23)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "containerEnv": {
+    "CC": "gcc-14",
+    "CXX": "g++-14"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "cmake.configureOnOpen": true,
+        "cmake.buildDirectory": "${workspaceFolder}/build/debug",
+        "clangd.arguments": ["--compile-commands-dir=${workspaceFolder}/build/debug"]
+      },
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd"
+      ]
+    }
+  },
+  "postCreateCommand": "cmake --preset debug"
+}

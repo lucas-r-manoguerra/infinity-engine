@@ -1,0 +1,18 @@
+# Infinity Engine formatting contract (rule 02). This file is law: CI runs
+# clang-format --dry-run --Werror on every PR (F0.6). The pinned tool is
+# clang-format-18; older versions may not understand newer keys.
+#
+# Base LLVM, adjusted to the repo conventions:
+#   - 4-space indentation
+#   - 100 columns
+#   - PointerAlignment: Left  (const Vec3&)
+#   - namespaces not indented
+#   - includes sorted within their blocks (own -> STL -> third_party)
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+PointerAlignment: Left
+DerivePointerAlignment: false
+NamespaceIndentation: None
+SortIncludes: true
