@@ -7,6 +7,8 @@ infinity_add_test(infinity_core_tests
     fault_injector_test.cpp
     loop_test.cpp
     pool_allocator_test.cpp
+    thread_pool_concurrency_test.cpp
+    thread_pool_test.cpp
     time_test.cpp
     version_test.cpp
 )
