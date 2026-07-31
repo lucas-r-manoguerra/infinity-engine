@@ -1,6 +1,8 @@
 add_library(infinity_core STATIC
     src/arena_allocator.cpp
+    src/loop.cpp
     src/pool_allocator.cpp
+    src/time.cpp
     src/version.cpp
 )
 
