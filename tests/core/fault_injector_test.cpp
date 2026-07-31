@@ -235,12 +235,12 @@ TEST_CASE("pool is empty when the backing's construction probe fails") {
     FaultInjectingAllocator backing{injector};
     injector.enqueue("backing.allocate", 0, CoreError::BACKING_ALLOCATOR_FAILED);
 
-    infinity::core::PoolAllocator pool{16, 16, 4, backing};
+    infinity::core::PoolAllocator pool{16, alignof(std::max_align_t), 4, backing};
 
     CHECK(pool.capacity() == 0);
     CHECK(pool.usedCount() == 0);
-    CHECK(pool.allocate(16, 16) == nullptr);
-    CHECK_FALSE(pool.supportsAlignment(16));
+    CHECK(pool.allocate(16, alignof(std::max_align_t)) == nullptr);
+    CHECK_FALSE(pool.supportsAlignment(alignof(std::max_align_t)));
     CHECK_FALSE(pool.supportsAlignment(1));
     CHECK(backing.lastFailureName() == BACKING_ALLOCATOR_FAILED);
     CHECK(backing.deallocationCount() == 0);
@@ -254,7 +254,7 @@ TEST_CASE("injector state persists across objects: a later arena sees the failur
         infinity::core::ArenaAllocator first{1024, backing};
         CHECK(first.capacityBytes() == 1024);
         CHECK(backing.lastFailureName() == NONE);
-        CHECK(first.allocate(16, 16) != nullptr);
+        CHECK(first.allocate(16, alignof(std::max_align_t)) != nullptr);
 
         injector.failNext("backing.allocate", CoreError::BACKING_ALLOCATOR_FAILED);
         infinity::core::ArenaAllocator second{1024, backing};
