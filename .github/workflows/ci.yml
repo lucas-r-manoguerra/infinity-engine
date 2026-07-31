@@ -92,6 +92,17 @@ jobs:
           export PATH="$LLVM_BIN:$PATH"
           cmake --build --preset ci
 
+      - name: Probe sanitizer runtime (diagnostic)
+        # Isolate a startup hang: a trivial ASan+UBSan+thread binary runs
+        # before the suite. If THIS hangs, the runner's sanitizer runtime is
+        # the problem, not the engine. perl alarm is the portable timeout on
+        # macOS (no GNU timeout).
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          printf '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n' > /tmp/probe.cpp
+          clang++-20 -std=c++23 -fsanitize=address,undefined -g /tmp/probe.cpp -o /tmp/probe
+          perl -e 'alarm 30; exec @ARGV' /tmp/probe && echo "ASAN+UBSAN+THREAD PROBE OK"
+
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
         # macOS does not ship GNU `timeout`, so python3 bounds each test binary
         # at 90s. The child runs under a pty: stdout is then line-buffered, so
@@ -130,6 +141,16 @@ jobs:
                       sys.stdout.buffer.write(data)
                       sys.stdout.buffer.flush()
               if timed_out:
+                  # macOS `sample` dumps the call stacks of the hung process;
+                  # the top frames of the main thread show where it is stuck.
+                  os.system(f"sample {pid} 2 -file /tmp/hang_sample.txt 2>/dev/null || true")
+                  try:
+                      with open("/tmp/hang_sample.txt", "rb") as sample_file:
+                          sys.stdout.buffer.write(b"--- sample of hung process ---\n")
+                          sys.stdout.buffer.write(sample_file.read())
+                          sys.stdout.buffer.flush()
+                  except OSError:
+                      pass
                   print(f"TIMEOUT: {binary} hung after {seconds}s; "
                         f"last TEST CASE above is the culprit", file=sys.stderr, flush=True)
                   try:
