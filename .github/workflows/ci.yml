@@ -43,19 +43,19 @@ jobs:
         run: ctest --preset ci
 
   build-test-macos:
-    name: Build + Test (macOS, clang 18, ASan/UBSan, clang-tidy)
+    name: Build + Test (macOS, clang 20, ASan/UBSan, clang-tidy)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install LLVM 18 toolchain (Homebrew, keg-only)
+      - name: Install LLVM 20 toolchain (Homebrew, keg-only)
         run: |
-          brew install llvm@18 ninja ccache
-          # llvm@18 is keg-only: its versioned binaries are not linked into
-          # /opt/homebrew/bin. Export the opt prefix so clang-18, clang++-18
-          # and clang-tidy-18 are on PATH. AppleClang (15/16/17) does not
-          # satisfy InfinityToolchain's Clang >= 18 baseline (ADR-025).
-          echo "/opt/homebrew/opt/llvm@18/bin" >> "$GITHUB_PATH"
+          brew install llvm@20 ninja ccache
+          # llvm@20 is keg-only: its versioned binaries are not linked into
+          # /opt/homebrew/bin. Export the opt prefix so clang-20, clang++-20
+          # and clang-tidy-20 are on PATH. AppleClang (15/16/17) does not
+          # satisfy InfinityToolchain's Clang >= 20 baseline (ADR-025).
+          echo "/opt/homebrew/opt/llvm@20/bin" >> "$GITHUB_PATH"
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -68,8 +68,8 @@ jobs:
       - name: Configure
         run: cmake --preset ci
         env:
-          CC: clang-18
-          CXX: clang++-18
+          CC: clang-20
+          CXX: clang++-20
 
       - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
         run: cmake --build --preset ci
@@ -78,7 +78,7 @@ jobs:
         run: ctest --preset ci
 
   build-test-windows:
-    name: Build + Test (Windows, clang-cl 18, debug preset)
+    name: Build + Test (Windows, clang-cl latest, debug preset)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

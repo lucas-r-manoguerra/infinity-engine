@@ -16,6 +16,7 @@
 #include <array>
 #include <cstddef>
 #include <expected>
+#include <ostream>
 #include <string_view>
 
 #include <doctest/doctest.h>
