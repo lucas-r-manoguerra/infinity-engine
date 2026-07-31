@@ -1,6 +1,7 @@
 // src/mat4.cpp
 #include "infinity/math/mat4.h"
 
+#include <array>
 #include <cmath>
 #include <numbers>
 
@@ -18,14 +19,14 @@ constexpr float MAT4_EPSILON = 1e-4f;
 constexpr float INVERSE_EPSILON = 1e-12f;
 
 // Determinant of a 3x3 matrix stored row-major in a flat 9-float array.
-float det3(const float a[9]) {
+float det3(const std::array<float, 9>& a) {
     return a[0] * (a[4] * a[8] - a[5] * a[7]) - a[1] * (a[3] * a[8] - a[5] * a[6]) +
            a[2] * (a[3] * a[7] - a[4] * a[6]);
 }
 
 // Copies the 3x3 minor of `m` (column-major, m[col * 4 + row]) obtained by
-// removing the given column and row into the row-major output `out[9]`.
-void minor3x3(const Mat4& m, int excludedCol, int excludedRow, float out[9]) {
+// removing the given column and row into the row-major output `out`.
+void minor3x3(const Mat4& m, int excludedCol, int excludedRow, std::array<float, 9>& out) {
     int i = 0;
     for (int row = 0; row < 4; ++row) {
         if (row == excludedRow) {
@@ -47,10 +48,18 @@ void minor3x3(const Mat4& m, int excludedCol, int excludedRow, float out[9]) {
 // 0 1]. Roughly half the work of the general 4x4 path below. Returns
 // identity() for a singular 3x3 block (|det| < INVERSE_EPSILON), per ADR-056.
 Mat4 invertAffine(const Mat4& m) {
-    const float m00 = m.m[0], m10 = m.m[1], m20 = m.m[2];
-    const float m01 = m.m[4], m11 = m.m[5], m21 = m.m[6];
-    const float m02 = m.m[8], m12 = m.m[9], m22 = m.m[10];
-    const float tx = m.m[12], ty = m.m[13], tz = m.m[14];
+    const float m00 = m.m[0];
+    const float m10 = m.m[1];
+    const float m20 = m.m[2];
+    const float m01 = m.m[4];
+    const float m11 = m.m[5];
+    const float m21 = m.m[6];
+    const float m02 = m.m[8];
+    const float m12 = m.m[9];
+    const float m22 = m.m[10];
+    const float tx = m.m[12];
+    const float ty = m.m[13];
+    const float tz = m.m[14];
 
     const float a = m00 * m11 - m01 * m10;
     const float b = m00 * m12 - m02 * m10;
@@ -201,10 +210,22 @@ Mat4 Mat4::inverted() const noexcept {
     // multiplies instead of the old Gauss-Jordan's ~32 scalar divisions
     // (rule 08). Singular (|det| < INVERSE_EPSILON) returns identity() and
     // never NaN/Inf (ADR-056). Inputs containing NaN/Inf are undefined.
-    const float m00 = m[0], m10 = m[1], m20 = m[2], m30 = m[3];
-    const float m01 = m[4], m11 = m[5], m21 = m[6], m31 = m[7];
-    const float m02 = m[8], m12 = m[9], m22 = m[10], m32 = m[11];
-    const float m03 = m[12], m13 = m[13], m23 = m[14], m33 = m[15];
+    const float m00 = m[0];
+    const float m10 = m[1];
+    const float m20 = m[2];
+    const float m30 = m[3];
+    const float m01 = m[4];
+    const float m11 = m[5];
+    const float m21 = m[6];
+    const float m31 = m[7];
+    const float m02 = m[8];
+    const float m12 = m[9];
+    const float m22 = m[10];
+    const float m32 = m[11];
+    const float m03 = m[12];
+    const float m13 = m[13];
+    const float m23 = m[14];
+    const float m33 = m[15];
 
     // 2x2 minors of the top and bottom 2x2 row pairs. Each minor appears in two
     // cofactors, so computing them once halves the multiply count.
@@ -252,10 +273,10 @@ Mat4 Mat4::inverted() const noexcept {
 float Mat4::determinant() const noexcept {
     // Cofactor expansion along row 0:
     // det = sum_j (-1)^j * m[0][j] * minor(0, j).
-    float minor0[9];
-    float minor1[9];
-    float minor2[9];
-    float minor3[9];
+    std::array<float, 9> minor0{};
+    std::array<float, 9> minor1{};
+    std::array<float, 9> minor2{};
+    std::array<float, 9> minor3{};
     minor3x3(*this, 0, 0, minor0);
     minor3x3(*this, 1, 0, minor1);
     minor3x3(*this, 2, 0, minor2);

@@ -23,6 +23,7 @@
 //
 // Benchmarks measure, they never assert (rule 08). Not a CTest target.
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <iomanip>
@@ -86,7 +87,7 @@ int main() {
     // Realistic inputs: four object transforms (TRS) with distinct translations,
     // rotations and scales, four rotations as quaternions, four non-trivial
     // vectors, and a range of interpolation factors.
-    const Mat4 transforms[4] = {
+    const std::array<Mat4, 4> transforms = {
         Mat4::translation(Vec3{1.0f, 2.0f, 3.0f}) *
             Mat4::rotationYawPitchRoll(15.0f, -30.0f, 45.0f) * Mat4::scale(Vec3{1.0f, 1.0f, 1.0f}),
         Mat4::translation(Vec3{-4.0f, 0.5f, 8.0f}) *
@@ -96,19 +97,19 @@ int main() {
         Mat4::translation(Vec3{9.0f, 3.0f, -2.0f}) *
             Mat4::rotationYawPitchRoll(200.0f, -10.0f, 30.0f) * Mat4::scale(Vec3{0.5f, 2.0f, 2.0f}),
     };
-    const Quat rotations[4] = {
+    const std::array<Quat, 4> rotations = {
         Quat::fromYawPitchRoll(15.0f, -30.0f, 45.0f),
         Quat::fromYawPitchRoll(120.0f, 60.0f, -15.0f),
         Quat::fromYawPitchRoll(-70.0f, 25.0f, 90.0f),
         Quat::fromYawPitchRoll(200.0f, -10.0f, 30.0f),
     };
-    const Vec3 vectors[4] = {
+    const std::array<Vec3, 4> vectors = {
         Vec3{1.0f, 2.0f, 3.0f},
         Vec3{-4.0f, 0.5f, 8.0f},
         Vec3{0.25f, -1.0f, 5.0f},
         Vec3{9.0f, 3.0f, -2.0f},
     };
-    const float slerpFactors[4] = {0.0f, 0.33f, 0.67f, 1.0f};
+    const std::array<float, 4> slerpFactors = {0.0f, 0.33f, 0.67f, 1.0f};
 
     // Mat4 (60-150 FLOPs per op; 1M iterations keep timing well above noise).
     report(runBenchmark("mat4_mul", 100000, 1000000,

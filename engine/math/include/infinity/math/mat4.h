@@ -10,19 +10,21 @@
 #include "infinity/math/vec3.h"
 #include "infinity/math/vec4.h"
 
+#include <array>
+
 namespace infinity::math {
 
 // Four-by-four matrix stored column-major in a flat 16-float array, 16-byte
-// aligned for future SIMD processing (F1.1).
-//
-// Element (row, col) of the matrix lives at m[col * 4 + row]; column 3 holds
-// the translation for affine matrices (m[12..14]) and m[15] == 1. Storage is
-// public plain data (no m_ prefix, rule 02). Determinism policy (ADR-056):
-// all operations use plain IEEE-754 arithmetic (no fast-math); the inverse
-// of a singular matrix returns identity() instead of NaN/Inf.
+// aligned for future SIMD processing (F1.1). std::array is used so the
+// storage stays a single flat block (same layout as float[16]) while keeping
+// C++23 std semantics; element (row, col) lives at m[col * 4 + row]; column 3
+// holds the translation for affine matrices (m[12..14]) and m[15] == 1.
+// Storage is public plain data (no m_ prefix, rule 02). Determinism policy
+// (ADR-056): all operations use plain IEEE-754 arithmetic (no fast-math); the
+// inverse of a singular matrix returns identity() instead of NaN/Inf.
 struct alignas(16) Mat4 {
     // Column-major storage: m[col * 4 + row]. Zero-initialized by default.
-    float m[16]{};
+    std::array<float, 16> m{};
 
     // Returns the identity matrix.
     [[nodiscard]] static Mat4 identity() noexcept;

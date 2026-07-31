@@ -99,7 +99,8 @@ TEST_CASE("Quat slerp across 180 degrees does not produce NaN") {
     const Quat minusQ{-q.x, -q.y, -q.z, -q.w};
     CHECK(std::abs(q.dot(minusQ)) > 0.9995f);
     int checked = 0;
-    for (float t = 0.0f; t <= 1.0f; t += 0.25f) {
+    for (int i = 0; i <= 4; ++i) {
+        const float t = static_cast<float>(i) * 0.25f;
         const Quat r = q.slerp(minusQ, t);
         CHECK(std::isfinite(r.x));
         CHECK(std::isfinite(r.y));
