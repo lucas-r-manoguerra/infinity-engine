@@ -93,7 +93,30 @@ jobs:
           cmake --build --preset ci
 
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
-        run: ctest --preset ci
+        # macOS does not ship GNU `timeout`, so python3 bounds each test binary
+        # at 90s and streams doctest's success reporter live. On a hang the
+        # log ends at the TEST CASE header of the culprit and the job fails in
+        # ~90s instead of burning runner time on an unresponsive binary.
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          python3 - <<'EOF'
+          import glob, subprocess, sys
+          bins = sorted(glob.glob("build/ci/tests/**/*_tests", recursive=True))
+          if not bins:
+              print("no test binaries found", file=sys.stderr)
+              sys.exit(1)
+          for binary in bins:
+              print(f"=== {binary} ===", flush=True)
+              try:
+                  result = subprocess.run([binary, "-s"], timeout=90)
+              except subprocess.TimeoutExpired:
+                  print(f"TIMEOUT: {binary} hung after 90s; "
+                        f"last TEST CASE above is the culprit", file=sys.stderr)
+                  sys.exit(124)
+              if result.returncode != 0:
+                  print(f"FAILED: {binary} rc={result.returncode}", file=sys.stderr)
+                  sys.exit(result.returncode)
+          EOF
 
   build-test-windows:
     name: Build + Test (Windows, clang-cl latest, debug preset)
