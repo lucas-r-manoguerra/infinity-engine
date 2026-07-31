@@ -316,13 +316,13 @@ y **mismos resultados en todas las plataformas** (ADR-056).
 de todas las demás (ADR-005).
 
 **Tareas**:
-- [ ] F2.1 Interfaz `Allocator` (abstract, explícita en cada subsistema)
-- [ ] F2.2 `ArenaAllocator` + `PoolAllocator` (alineación correcta desde el día 1)
-- [ ] F2.3 Error sets por subsistema con `std::expected` (sin excepciones)
-- [ ] F2.4 Fault injection (ADR-016): fallos inyectables en alloc/IO/init para tests
-- [ ] F2.5 `Time` (clock, delta, FPS) + `Loop` fixed timestep 60Hz (ADR-006)
-- [ ] F2.6 `Diagnostics` (contadores atómicos, sin allocaciones)
-- [ ] F2.7 `ThreadPool` (workers idle bloqueados en futex, spawn/wait)
+- [x] F2.1 Interfaz `Allocator` (abstract, explícita en cada subsistema)
+- [x] F2.2 `ArenaAllocator` + `PoolAllocator` (alineación correcta desde el día 1)
+- [x] F2.3 Error sets por subsistema con `std::expected` (sin excepciones)
+- [x] F2.4 Fault injection (ADR-016): fallos inyectables en alloc/IO/init para tests
+- [x] F2.5 `Time` (clock, delta, FPS) + `Loop` fixed timestep 60Hz (ADR-006)
+- [x] F2.6 `Diagnostics` (contadores atómicos, sin allocaciones)
+- [x] F2.7 `ThreadPool` (workers idle bloqueados en futex, spawn/wait)
 - [ ] F2.8 Abstracción FS/threads/time + UTF-8 (ADR-023) en core
 - [ ] F2.9 Property-based tests + fuzzing base (ADR-017): invariantes de math y round-trips
 - [ ] F2.10 Benchmarks de memoria (arena alloc objetivo <60ns)

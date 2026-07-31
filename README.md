@@ -46,8 +46,8 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | Fase | Nombre | Descripción | Estado |
 |---|---|---|---|
 | **F0** | Fundamentos | Layout CMake, toolchain C++23, doctest vendored, sanitizers, CI, reglas opencode | ✅ Completada |
-| **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | 🔜 Siguiente |
-| **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection | ⏳ Planificada |
+| **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | ✅ Completada |
+| **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection | 🚧 En curso (F2.1–F2.7) |
 | **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) | ⏳ Planificada |
 | **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + esqueleto Vulkan + headless | ⏳ Planificada |
 | **F5** | ECS | World, Entity (handle + generation), Component, System, Query con read/write sets | ⏳ Planificada |
