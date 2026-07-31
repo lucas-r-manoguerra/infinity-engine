@@ -2,6 +2,7 @@ infinity_add_test(infinity_core_tests
     main.cpp
     allocator_test.cpp
     arena_allocator_test.cpp
+    diagnostics_test.cpp
     error_test.cpp
     fault_injector_test.cpp
     loop_test.cpp
