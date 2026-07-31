@@ -1,6 +1,7 @@
 // src/loop.cpp
 #include "infinity/core/loop.h"
 
+#include <algorithm>
 #include <cassert>
 
 namespace infinity::core {
@@ -19,9 +20,7 @@ void Loop::step(double realDeltaSeconds) noexcept {
     assert(realDeltaSeconds >= 0.0); // negative real delta: time cannot flow backwards (ADR-006)
 
     // Release builds drop the assert; clamp to zero rather than rewind (ADR-003).
-    if (realDeltaSeconds < 0.0) {
-        realDeltaSeconds = 0.0;
-    }
+    realDeltaSeconds = std::max(realDeltaSeconds, 0.0);
 
     // Defensive: the constructor asserts a positive timestep, but a
     // release-built Loop with a zero delta would spin forever below. A no-op
@@ -31,9 +30,7 @@ void Loop::step(double realDeltaSeconds) noexcept {
     }
 
     m_accumulator += realDeltaSeconds;
-    if (m_accumulator > m_maxFrameDelta) {
-        m_accumulator = m_maxFrameDelta; // spiral-of-death clamp: bound catch-up work
-    }
+    m_accumulator = std::min(m_accumulator, m_maxFrameDelta);
 
     while (m_accumulator >= m_fixedDeltaSeconds) {
         m_accumulator -= m_fixedDeltaSeconds;

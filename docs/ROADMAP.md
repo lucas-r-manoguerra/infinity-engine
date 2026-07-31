@@ -54,7 +54,7 @@ engine nuevo necesita**:
 | `std::print` | Logging estructurado sin la torpeza de `iostream` |
 | Ranges (zip, etc.) | Iteración expresiva sobre arreglos |
 
-**Toolchain**: GCC 14+ / Clang 18+ / MSVC soportan C++23 de forma estable en 2026.
+**Toolchain**: GCC 14+ / Clang 20+ / MSVC soportan C++23 de forma estable en 2026.
 La única excepción deliberada: **no usamos modules (`import`)** — el soporte
 cross-compiler sigue inmaduro. Compilación clásica header/source, con C++23 habilitado.
 

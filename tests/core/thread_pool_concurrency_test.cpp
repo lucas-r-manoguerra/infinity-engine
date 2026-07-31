@@ -287,7 +287,7 @@ TEST_CASE("a task can submit one more task to the same pool (single-level self-s
     // make progress (the worker runs user code outside the pool lock).
     ThreadPool pool{1};
     std::atomic<uint32_t> counter{0};
-    SelfSubmitPayload payload{&pool, &counter};
+    SelfSubmitPayload payload{.pool = &pool, .counter = &counter};
 
     pool.submit(selfSubmitTask, &payload);
     pool.waitAll(); // covers both the outer task and the inner one

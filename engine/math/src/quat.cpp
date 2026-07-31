@@ -21,8 +21,8 @@ constexpr float SLERP_NLERP_DOT = 0.9995f;
 // Linearly interpolates a and b at t, then normalizes. Used as the degenerate
 // fallback of slerp so it never produces NaN.
 Quat nlerp(const Quat& a, const Quat& b, float t) {
-    const Quat lerp{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t,
-                    a.w + (b.w - a.w) * t};
+    const Quat lerp{a.x + ((b.x - a.x) * t), a.y + ((b.y - a.y) * t), a.z + ((b.z - a.z) * t),
+                    a.w + ((b.w - a.w) * t)};
     return lerp.normalized();
 }
 
@@ -66,9 +66,9 @@ Quat Quat::fromMat4(const Mat4& matrix) noexcept {
     const float m22 = matrix.m[10];
 
     // Remove per-axis scale by normalizing each of the first three columns.
-    const float colLenSq0 = m00 * m00 + m10 * m10 + m20 * m20;
-    const float colLenSq1 = m01 * m01 + m11 * m11 + m21 * m21;
-    const float colLenSq2 = m02 * m02 + m12 * m12 + m22 * m22;
+    const float colLenSq0 = (m00 * m00) + (m10 * m10) + (m20 * m20);
+    const float colLenSq1 = (m01 * m01) + (m11 * m11) + (m21 * m21);
+    const float colLenSq2 = (m02 * m02) + (m12 * m12) + (m22 * m22);
     if (colLenSq0 == 0.0f || colLenSq1 == 0.0f || colLenSq2 == 0.0f) {
         return identity();
     }
@@ -186,8 +186,8 @@ Quat Quat::slerp(const Quat& other, float t) const noexcept {
     const float sinTheta = std::sin(theta);
     const float weightA = std::sin((1.0f - t) * theta) / sinTheta;
     const float weightB = std::sin(t * theta) / sinTheta;
-    return Quat{a.x * weightA + b.x * weightB, a.y * weightA + b.y * weightB,
-                a.z * weightA + b.z * weightB, a.w * weightA + b.w * weightB}
+    return Quat{(a.x * weightA) + (b.x * weightB), (a.y * weightA) + (b.y * weightB),
+                (a.z * weightA) + (b.z * weightB), (a.w * weightA) + (b.w * weightB)}
         .normalized();
 }
 

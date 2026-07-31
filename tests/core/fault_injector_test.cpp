@@ -203,7 +203,7 @@ TEST_CASE("concurrent probing consumes the script exactly once") {
     second.join();
 
     CHECK(failures.load() == FAILURE_INDICES);
-    CHECK(successes.load() == 2 * PROBES_PER_THREAD - FAILURE_INDICES);
+    CHECK(successes.load() == (2 * PROBES_PER_THREAD) - FAILURE_INDICES);
 }
 
 TEST_CASE("instance returns a stable process-wide injector") {
