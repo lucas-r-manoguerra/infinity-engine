@@ -44,7 +44,7 @@ jobs:
         run: ctest --preset ci
 
   build-test-macos:
-    name: Build + Test (macOS, clang 20, ASan/UBSan, clang-tidy)
+    name: Build + Test (macOS, clang 20, UBSan, clang-tidy)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +76,13 @@ jobs:
         # InfinityToolchain find clang-tidy-20 during configure. Runner images
         # differ in keg layout (versioned clang++-20 vs plain clang++), so fall
         # back to the unversioned names and log what the keg actually provides.
+        #
+        # UBSan-only: the Homebrew llvm@20 ASan runtime hangs at startup on the
+        # arm64 macOS runners (probes: even a `return 0` ASan binary dies by
+        # SIGALRM; the same binary with UBSan-only runs fine). So macOS keeps
+        # clang-tidy + UBSan coverage but builds with INFINITY_ENABLE_SANITIZERS
+        # off and the UBSan flags injected here, mirroring how the MSVC branch
+        # skips an unusable sanitizer while preserving the rest of the ci preset.
         run: |
           export PATH="$LLVM_BIN:$PATH"
           ls -1 "$LLVM_BIN" | grep '^clang' || true
@@ -85,109 +92,20 @@ jobs:
           [ -x "$CXX_BIN" ] || CXX_BIN="$LLVM_BIN/clang++"
           cmake --preset ci \
             -DCMAKE_C_COMPILER="$C_BIN" \
-            -DCMAKE_CXX_COMPILER="$CXX_BIN"
+            -DCMAKE_CXX_COMPILER="$CXX_BIN" \
+            -DINFINITY_ENABLE_SANITIZERS=OFF \
+            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
 
       - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
         run: |
           export PATH="$LLVM_BIN:$PATH"
           cmake --build --preset ci
 
-      - name: Probe sanitizer runtime (diagnostic)
-        # asan_nothread already proved the Homebrew llvm@20 ASan runtime hangs
-        # on this runner (even a `return 0` binary), so no ASan probe repeats
-        # here. These two answer the remaining question for the fallback:
-        # does UBSan-only work, and does ASan+UBSan together hang like the
-        # suite does? perl alarm is the portable timeout (macOS has no GNU
-        # timeout). printf '%b' interprets the \n escapes in the source.
+      - name: Test (UBSan; ASan skipped on macOS, see Configure)
         run: |
           export PATH="$LLVM_BIN:$PATH"
-          probe() {
-            local name="$1" flags="$2" source="$3"
-            printf '%b' "$source" > "/tmp/${name}.cpp"
-            if ! clang++ -std=c++23 $flags -g "/tmp/${name}.cpp" -o "/tmp/${name}" 2>/dev/null; then
-              echo "PROBE ${name}: COMPILE FAILED"
-              return 0
-            fi
-            if perl -e 'alarm 30; exec @ARGV' "/tmp/${name}"; then
-              echo "PROBE ${name}: OK"
-            else
-              echo "PROBE ${name}: HUNG/FAILED (rc=$?)"
-            fi
-          }
-          probe ubsan_thread "-fsanitize=undefined" '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n'
-          probe both_thread  "-fsanitize=address,undefined" '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n'
-
-      - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
-        # macOS does not ship GNU `timeout`, so python3 bounds each test binary
-        # at 90s. The child runs under a pty: stdout is then line-buffered, so
-        # doctest's banner and every TEST CASE header stream live into the log
-        # instead of dying in a block buffer on SIGKILL. On a hang the log ends
-        # at the culprit's TEST CASE header and the job fails in ~90s.
-        run: |
-          export PATH="$LLVM_BIN:$PATH"
-          export ASAN_OPTIONS="detect_leaks=0:halt_on_error=1"
-          python3 - <<'EOF'
-          import glob, os, pty, select, sys, time
-
-          def run_timed(binary, seconds):
-              deadline = time.monotonic() + seconds
-              pid, fd = pty.fork()
-              if pid == 0:
-                  os.execv(binary, [binary, "-s"])
-              os.set_blocking(fd, False)
-              timed_out = False
-              while True:
-                  remaining = deadline - time.monotonic()
-                  if remaining <= 0:
-                      timed_out = True
-                      break
-                  try:
-                      r, _, _ = select.select([fd], [], [], min(remaining, 1.0))
-                  except InterruptedError:
-                      continue
-                  if fd in r:
-                      try:
-                          data = os.read(fd, 65536)
-                      except OSError:
-                          break
-                      if not data:
-                          break
-                      sys.stdout.buffer.write(data)
-                      sys.stdout.buffer.flush()
-              if timed_out:
-                  # macOS `sample` dumps the call stacks of the hung process;
-                  # the top frames of the main thread show where it is stuck.
-                  os.system(f"sample {pid} 2 -file /tmp/hang_sample.txt 2>/dev/null || true")
-                  try:
-                      with open("/tmp/hang_sample.txt", "rb") as sample_file:
-                          sys.stdout.buffer.write(b"--- sample of hung process ---\n")
-                          sys.stdout.buffer.write(sample_file.read())
-                          sys.stdout.buffer.flush()
-                  except OSError:
-                      pass
-                  print(f"TIMEOUT: {binary} hung after {seconds}s; "
-                        f"last TEST CASE above is the culprit", file=sys.stderr, flush=True)
-                  try:
-                      os.kill(pid, 9)
-                  except ProcessLookupError:
-                      pass
-              _, status = os.waitpid(pid, 0)
-              rc = os.waitstatus_to_exitcode(status)
-              if timed_out:
-                  sys.exit(124)
-              return rc
-
-          bins = sorted(glob.glob("build/ci/tests/**/*_tests", recursive=True))
-          if not bins:
-              print("no test binaries found", file=sys.stderr)
-              sys.exit(1)
-          for binary in bins:
-              print(f"=== {binary} ===", flush=True)
-              rc = run_timed(binary, 90)
-              if rc != 0:
-                  print(f"FAILED: {binary} rc={rc}", file=sys.stderr, flush=True)
-                  sys.exit(rc)
-          EOF
+          ctest --preset ci --timeout 180
 
   build-test-windows:
     name: Build + Test (Windows, clang-cl latest, debug preset)
