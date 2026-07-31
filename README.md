@@ -4,7 +4,7 @@
 
 ![C++23](https://img.shields.io/badge/C%2B%2B-23-00599C?style=flat&logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.24%2B-064F8C?style=flat&logo=cmake&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat&logo=linux&logoColor=black)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-0A66C2?style=flat&logo=linux&logoColor=white)
 ![CI](https://github.com/lucas-r-manoguerra/infinity-engine/actions/workflows/ci.yml/badge.svg)
 ![Status](https://img.shields.io/badge/status-alpha%20v0.1.0--alpha.2-orange?style=flat)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)

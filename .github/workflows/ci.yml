@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-test:
-    name: Build + Test (ci preset, ASan/UBSan, clang-tidy)
+    name: Build + Test (Linux, ci preset, ASan/UBSan, clang-tidy)
     runs-on: ubuntu-latest
     env:
       CC: gcc-14
@@ -42,6 +42,65 @@ jobs:
 
       - name: Test (ASan/UBSan)
         run: ctest --preset ci
+
+  build-test-macos:
+    name: Build + Test (macOS, clang 18, ASan/UBSan, clang-tidy)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM 18 toolchain (Homebrew, keg-only)
+        run: |
+          brew install llvm@18 ninja ccache
+          # llvm@18 is keg-only: its versioned binaries are not linked into
+          # /opt/homebrew/bin. Export the opt prefix so clang-18, clang++-18
+          # and clang-tidy-18 are on PATH. AppleClang (15/16/17) does not
+          # satisfy InfinityToolchain's Clang >= 18 baseline (ADR-025).
+          echo "/opt/homebrew/opt/llvm@18/bin" >> "$GITHUB_PATH"
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Configure
+        run: cmake --preset ci
+        env:
+          CC: clang-18
+          CXX: clang++-18
+
+      - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
+        run: cmake --build --preset ci
+
+      - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
+        run: ctest --preset ci
+
+  build-test-windows:
+    name: Build + Test (Windows, clang-cl 18, debug preset)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM + Ninja (choco)
+        run: choco install llvm ninja -y --no-progress
+
+      - name: Set up MSVC environment (for clang-cl STL/headers)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (clang-cl; MSVC frontend variant keeps /W4 /WX)
+        run: cmake --preset debug -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+        env:
+          CC: clang-cl
+          CXX: clang-cl
+
+      - name: Build
+        run: cmake --build --preset debug
+
+      - name: Test
+        run: ctest --preset debug
 
   format-check:
     name: clang-format check
