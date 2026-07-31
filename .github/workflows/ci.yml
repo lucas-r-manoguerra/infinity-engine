@@ -51,11 +51,15 @@ jobs:
       - name: Install LLVM 20 toolchain (Homebrew, keg-only)
         run: |
           brew install llvm@20 ninja ccache
-          # llvm@20 is keg-only: its versioned binaries are not linked into
-          # /opt/homebrew/bin. Export the opt prefix so clang-20, clang++-20
-          # and clang-tidy-20 are on PATH. AppleClang (15/16/17) does not
-          # satisfy InfinityToolchain's Clang >= 20 baseline (ADR-025).
-          echo "/opt/homebrew/opt/llvm@20/bin" >> "$GITHUB_PATH"
+          # llvm@20 is keg-only: its versioned binaries are not linked into the
+          # default PATH. Resolve the per-arch opt prefix and export it as
+          # $LLVM_BIN for the configure/build steps. AppleClang (15/16/17) does
+          # not satisfy InfinityToolchain's Clang >= 20 baseline (ADR-025).
+          if [ "$(uname -m)" = "arm64" ]; then
+            echo "LLVM_BIN=/opt/homebrew/opt/llvm@20/bin" >> "$GITHUB_ENV"
+          else
+            echo "LLVM_BIN=/usr/local/opt/llvm@20/bin" >> "$GITHUB_ENV"
+          fi
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -66,13 +70,19 @@ jobs:
             ccache-${{ runner.os }}-
 
       - name: Configure
-        run: cmake --preset ci
-        env:
-          CC: clang-20
-          CXX: clang++-20
+        # Full compiler paths: CMake requires either a name on PATH or an
+        # absolute path for the compiler. The local PATH export also lets
+        # InfinityToolchain find clang-tidy-20 during configure.
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          cmake --preset ci \
+            -DCMAKE_C_COMPILER="$LLVM_BIN/clang-20" \
+            -DCMAKE_CXX_COMPILER="$LLVM_BIN/clang++-20"
 
       - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
-        run: cmake --build --preset ci
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          cmake --build --preset ci
 
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
         run: ctest --preset ci
