@@ -93,16 +93,30 @@ jobs:
           cmake --build --preset ci
 
       - name: Probe sanitizer runtime (diagnostic)
-        # Isolate a startup hang: a trivial ASan+UBSan+thread binary runs
-        # before the suite. If THIS hangs, the runner's sanitizer runtime is
-        # the problem, not the engine. perl alarm is the portable timeout on
-        # macOS (no GNU timeout). The keg has no clang++-20 binary, only the
-        # unversioned clang++ (same reason Configure falls back to it).
+        # The full suite hangs before doctest's banner even under a pty, and a
+        # trivial ASan+UBSan+thread binary hangs too: the Homebrew llvm@20
+        # sanitizer runtime misbehaves on this runner, not the engine. Four
+        # probes isolate WHICH component (ASan vs UBSan, threads vs not) so the
+        # macOS fallback can drop only the broken part. perl alarm is the
+        # portable timeout (macOS has no GNU timeout). The keg has no
+        # clang++-20 binary, only the unversioned clang++ (same reason
+        # Configure falls back to it).
         run: |
           export PATH="$LLVM_BIN:$PATH"
-          printf '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n' > /tmp/probe.cpp
-          clang++ -std=c++23 -fsanitize=address,undefined -g /tmp/probe.cpp -o /tmp/probe
-          perl -e 'alarm 30; exec @ARGV' /tmp/probe && echo "ASAN+UBSAN+THREAD PROBE OK"
+          probe() {
+            local name="$1" flags="$2" source="$3"
+            printf '%s' "$source" > "/tmp/${name}.cpp"
+            clang++ -std=c++23 $flags -g "/tmp/${name}.cpp" -o "/tmp/${name}" || { echo "PROBE ${name}: COMPILE FAILED"; return 1; }
+            if perl -e 'alarm 30; exec @ARGV' "/tmp/${name}"; then
+              echo "PROBE ${name}: OK"
+            else
+              echo "PROBE ${name}: HUNG/FAILED (rc=$?)"
+            fi
+          }
+          probe asan_nothread "-fsanitize=address" 'int main() { return 0; }'
+          probe asan_thread    "-fsanitize=address" '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n'
+          probe ubsan_thread   "-fsanitize=undefined" '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n'
+          probe both_thread    "-fsanitize=address,undefined" '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n'
 
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
         # macOS does not ship GNU `timeout`, so python3 bounds each test binary
