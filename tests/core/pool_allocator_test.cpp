@@ -22,7 +22,7 @@ namespace {
 // rule 03) rejects alignment above alignof(std::max_align_t) -- which is 8 on
 // MSVC and 16 on GCC/Clang. Tests must not hardcode 16: an empty pool fails
 // every allocation CHECK.
-constexpr size_t kAlignment = alignof(std::max_align_t);
+constexpr size_t POOL_ALIGNMENT = alignof(std::max_align_t);
 
 // Struct large enough to exercise the typed allocation path (elementSize
 // must be >= alignment; max_align_t <= 16 everywhere, so 16 bytes always fits).
@@ -98,11 +98,11 @@ static_assert(!std::is_move_assignable_v<infinity::core::PoolAllocator>);
 
 TEST_CASE("allocate hands out distinct slot addresses") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 3, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 3, backing};
 
-    auto* first = pool.allocate(16, kAlignment);
-    auto* second = pool.allocate(16, kAlignment);
-    auto* third = pool.allocate(16, kAlignment);
+    auto* first = pool.allocate(16, POOL_ALIGNMENT);
+    auto* second = pool.allocate(16, POOL_ALIGNMENT);
+    auto* third = pool.allocate(16, POOL_ALIGNMENT);
 
     CHECK(first != nullptr);
     CHECK(second != nullptr);
@@ -114,37 +114,37 @@ TEST_CASE("allocate hands out distinct slot addresses") {
 
 TEST_CASE("every slot is aligned to the pool alignment") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 4, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 4, backing};
 
     for (size_t i = 0; i < pool.capacity(); ++i) {
-        void* slot = pool.allocate(16, kAlignment);
+        void* slot = pool.allocate(16, POOL_ALIGNMENT);
         CHECK(slot != nullptr);
-        CHECK(reinterpret_cast<uintptr_t>(slot) % kAlignment == 0);
+        CHECK(reinterpret_cast<uintptr_t>(slot) % POOL_ALIGNMENT == 0);
     }
 }
 
 TEST_CASE("allocation beyond capacity returns nullptr and usedCount saturates") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 3, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 3, backing};
 
-    auto* first = pool.allocate(16, kAlignment);
-    auto* second = pool.allocate(16, kAlignment);
-    auto* third = pool.allocate(16, kAlignment);
+    auto* first = pool.allocate(16, POOL_ALIGNMENT);
+    auto* second = pool.allocate(16, POOL_ALIGNMENT);
+    auto* third = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(first != nullptr);
     CHECK(second != nullptr);
     CHECK(third != nullptr);
     CHECK(pool.usedCount() == 3);
 
-    CHECK(pool.allocate(16, kAlignment) == nullptr);
+    CHECK(pool.allocate(16, POOL_ALIGNMENT) == nullptr);
     CHECK(pool.usedCount() == 3);
 }
 
 TEST_CASE("deallocate returns the slot to the free list for immediate reuse") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 3, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 3, backing};
 
-    auto* first = pool.allocate(16, kAlignment);
-    auto* second = pool.allocate(16, kAlignment);
+    auto* first = pool.allocate(16, POOL_ALIGNMENT);
+    auto* second = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(first != nullptr);
     CHECK(second != nullptr);
     CHECK(pool.usedCount() == 2);
@@ -152,18 +152,18 @@ TEST_CASE("deallocate returns the slot to the free list for immediate reuse") {
     pool.deallocate(second, 16);
     CHECK(pool.usedCount() == 1);
 
-    auto* again = pool.allocate(16, kAlignment);
+    auto* again = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(again == second);
     CHECK(pool.usedCount() == 2);
 }
 
 TEST_CASE("fully freed pool serves a full cycle of allocations again") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 3, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 3, backing};
 
     std::array<void*, 3> firstCycle{};
     for (void*& slot : firstCycle) {
-        slot = pool.allocate(16, kAlignment);
+        slot = pool.allocate(16, POOL_ALIGNMENT);
         CHECK(slot != nullptr);
     }
 
@@ -174,7 +174,7 @@ TEST_CASE("fully freed pool serves a full cycle of allocations again") {
 
     std::array<void*, 3> secondCycle{};
     for (void*& slot : secondCycle) {
-        slot = pool.allocate(16, kAlignment);
+        slot = pool.allocate(16, POOL_ALIGNMENT);
         CHECK(slot != nullptr);
     }
     CHECK(pool.usedCount() == 3);
@@ -182,18 +182,18 @@ TEST_CASE("fully freed pool serves a full cycle of allocations again") {
 
 TEST_CASE("usedCount and capacity stay correct through mixed sequences") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 4, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 4, backing};
 
-    auto* a = pool.allocate(16, kAlignment);
-    auto* b = pool.allocate(16, kAlignment);
+    auto* a = pool.allocate(16, POOL_ALIGNMENT);
+    auto* b = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(pool.capacity() == 4);
     CHECK(pool.usedCount() == 2);
 
     pool.deallocate(a, 16);
     CHECK(pool.usedCount() == 1);
 
-    auto* c = pool.allocate(16, kAlignment);
-    auto* d = pool.allocate(16, kAlignment);
+    auto* c = pool.allocate(16, POOL_ALIGNMENT);
+    auto* d = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(c != nullptr);
     CHECK(d != nullptr);
     CHECK(pool.usedCount() == 3);
@@ -208,14 +208,14 @@ TEST_CASE("usedCount and capacity stay correct through mixed sequences") {
 TEST_CASE("two pools built with the same parameters hand out slots in the same order") {
     CountingAllocator backingA;
     CountingAllocator backingB;
-    infinity::core::PoolAllocator poolA{16, kAlignment, 4, backingA};
-    infinity::core::PoolAllocator poolB{16, kAlignment, 4, backingB};
+    infinity::core::PoolAllocator poolA{16, POOL_ALIGNMENT, 4, backingA};
+    infinity::core::PoolAllocator poolB{16, POOL_ALIGNMENT, 4, backingB};
 
     std::array<void*, 4> slotsA{};
     std::array<void*, 4> slotsB{};
     for (size_t i = 0; i < 4; ++i) {
-        slotsA[i] = poolA.allocate(16, kAlignment);
-        slotsB[i] = poolB.allocate(16, kAlignment);
+        slotsA[i] = poolA.allocate(16, POOL_ALIGNMENT);
+        slotsB[i] = poolB.allocate(16, POOL_ALIGNMENT);
     }
 
     for (size_t i = 0; i < 4; ++i) {
@@ -232,46 +232,46 @@ TEST_CASE("two pools built with the same parameters hand out slots in the same o
 TEST_CASE("backing is hit once at construction and once at destruction") {
     CountingAllocator backing;
     {
-        infinity::core::PoolAllocator pool{16, kAlignment, 8, backing};
+        infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 8, backing};
         CHECK(backing.allocationCount() == 1);
         CHECK(backing.deallocationCount() == 0);
-        (void)pool.allocate(16, kAlignment);
+        (void)pool.allocate(16, POOL_ALIGNMENT);
     }
     CHECK(backing.deallocationCount() == 1);
 }
 
 TEST_CASE("empty pool when the backing cannot provide the block") {
     FailingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 4, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 4, backing};
 
     CHECK(pool.capacity() == 0);
     CHECK(pool.usedCount() == 0);
-    CHECK(pool.allocate(16, kAlignment) == nullptr);
-    CHECK_FALSE(pool.supportsAlignment(kAlignment));
+    CHECK(pool.allocate(16, POOL_ALIGNMENT) == nullptr);
+    CHECK_FALSE(pool.supportsAlignment(POOL_ALIGNMENT));
     CHECK_FALSE(pool.supportsAlignment(1));
 }
 
 TEST_CASE("supportsAlignment accepts only the pool alignment and byte alignment") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{16, kAlignment, 4, backing};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 4, backing};
 
-    CHECK(pool.supportsAlignment(kAlignment));
+    CHECK(pool.supportsAlignment(POOL_ALIGNMENT));
     CHECK(pool.supportsAlignment(1));
     CHECK_FALSE(pool.supportsAlignment(0));
     CHECK_FALSE(pool.supportsAlignment(2));
     CHECK_FALSE(pool.supportsAlignment(4));
-    CHECK_FALSE(pool.supportsAlignment(kAlignment / 2));
-    CHECK_FALSE(pool.supportsAlignment(kAlignment * 2));
+    CHECK_FALSE(pool.supportsAlignment(POOL_ALIGNMENT / 2));
+    CHECK_FALSE(pool.supportsAlignment(POOL_ALIGNMENT * 2));
 }
 
 TEST_CASE("allocateObject with the pool alignment returns an aligned object") {
     CountingAllocator backing;
-    infinity::core::PoolAllocator pool{sizeof(Vector4), kAlignment, 4, backing};
+    infinity::core::PoolAllocator pool{sizeof(Vector4), POOL_ALIGNMENT, 4, backing};
 
-    auto* vector = pool.allocateObject<Vector4>(kAlignment);
+    auto* vector = pool.allocateObject<Vector4>(POOL_ALIGNMENT);
 
     CHECK(vector != nullptr);
-    CHECK(reinterpret_cast<uintptr_t>(vector) % kAlignment == 0);
+    CHECK(reinterpret_cast<uintptr_t>(vector) % POOL_ALIGNMENT == 0);
     CHECK(pool.usedCount() == 1);
 
     pool.deallocateObject(vector);
@@ -279,16 +279,16 @@ TEST_CASE("allocateObject with the pool alignment returns an aligned object") {
 }
 
 TEST_CASE("standalone pool is backed by an internal malloc backend") {
-    infinity::core::PoolAllocator pool{16, kAlignment, 4};
+    infinity::core::PoolAllocator pool{16, POOL_ALIGNMENT, 4};
 
     CHECK(pool.capacity() == 4);
 
-    auto* first = pool.allocate(16, kAlignment);
+    auto* first = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(first != nullptr);
-    CHECK(reinterpret_cast<uintptr_t>(first) % kAlignment == 0);
+    CHECK(reinterpret_cast<uintptr_t>(first) % POOL_ALIGNMENT == 0);
 
     pool.deallocate(first, 16);
 
-    auto* again = pool.allocate(16, kAlignment);
+    auto* again = pool.allocate(16, POOL_ALIGNMENT);
     CHECK(again == first);
 }
