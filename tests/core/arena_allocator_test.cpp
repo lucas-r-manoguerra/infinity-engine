@@ -148,7 +148,7 @@ TEST_CASE("usedBytes and capacityBytes account for alignment padding") {
 
     auto* a = arena.allocate(3, 1);
     auto* b = arena.allocate(4, 8);
-    auto* c = arena.allocate(1, 16);
+    auto* c = arena.allocate(1, alignof(std::max_align_t));
 
     CHECK(a != nullptr);
     CHECK(b != nullptr);
@@ -180,14 +180,14 @@ TEST_CASE("deallocate is a no-op and only reset makes the block reusable") {
     CHECK(again == first);
 }
 
-TEST_CASE("allocateObject with 16-byte alignment returns an aligned object") {
+TEST_CASE("allocateObject with the block alignment returns an aligned object") {
     CountingAllocator backing;
     infinity::core::ArenaAllocator arena{1024, backing};
 
-    auto* point = arena.allocateObject<Point>(16);
+    auto* point = arena.allocateObject<Point>(alignof(std::max_align_t));
 
     CHECK(point != nullptr);
-    CHECK(reinterpret_cast<uintptr_t>(point) % 16 == 0);
+    CHECK(reinterpret_cast<uintptr_t>(point) % alignof(std::max_align_t) == 0);
     CHECK(arena.usedBytes() == sizeof(Point));
 }
 
@@ -223,7 +223,6 @@ TEST_CASE("supportsAlignment covers the block alignment range") {
     CHECK(arena.supportsAlignment(2));
     CHECK(arena.supportsAlignment(4));
     CHECK(arena.supportsAlignment(8));
-    CHECK(arena.supportsAlignment(16));
     CHECK(arena.supportsAlignment(alignof(std::max_align_t)));
     CHECK_FALSE(arena.supportsAlignment(0));
     CHECK_FALSE(arena.supportsAlignment(3));

@@ -10,11 +10,11 @@ permissions:
 
 jobs:
   build-test:
-    name: Build + Test (ci preset, ASan/UBSan, clang-tidy)
+    name: Build + Test (Linux, ci preset, ASan/UBSan, clang-tidy)
     runs-on: ubuntu-latest
     env:
-      CC: gcc-14
-      CXX: g++-14
+      CC: clang-20
+      CXX: clang++-20
     steps:
       - uses: actions/checkout@v4
 
@@ -23,8 +23,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build ccache \
-            g++-14 \
-            clang-18 clang-format-18 clang-tidy-18
+            clang-20 clang-format-20 clang-tidy-20 \
+            libclang-rt-20-dev
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -43,16 +43,104 @@ jobs:
       - name: Test (ASan/UBSan)
         run: ctest --preset ci
 
+  build-test-macos:
+    name: Build + Test (macOS, clang 20, UBSan, clang-tidy)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM 20 toolchain (Homebrew, keg-only)
+        run: |
+          brew install llvm@20 ninja ccache
+          # llvm@20 is keg-only: its versioned binaries are not linked into the
+          # default PATH. Resolve the per-arch opt prefix and export it as
+          # $LLVM_BIN for the configure/build steps. AppleClang (15/16/17) does
+          # not satisfy InfinityToolchain's Clang >= 20 baseline (ADR-025).
+          if [ "$(uname -m)" = "arm64" ]; then
+            echo "LLVM_BIN=/opt/homebrew/opt/llvm@20/bin" >> "$GITHUB_ENV"
+          else
+            echo "LLVM_BIN=/usr/local/opt/llvm@20/bin" >> "$GITHUB_ENV"
+          fi
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Configure
+        # Full compiler paths: CMake requires either a name on PATH or an
+        # absolute path for the compiler. The local PATH export also lets
+        # InfinityToolchain find clang-tidy-20 during configure. Runner images
+        # differ in keg layout (versioned clang++-20 vs plain clang++), so fall
+        # back to the unversioned names and log what the keg actually provides.
+        #
+        # UBSan-only: the Homebrew llvm@20 ASan runtime hangs at startup on the
+        # arm64 macOS runners (probes: even a `return 0` ASan binary dies by
+        # SIGALRM; the same binary with UBSan-only runs fine). So macOS keeps
+        # clang-tidy + UBSan coverage but builds with INFINITY_ENABLE_SANITIZERS
+        # off and the UBSan flags injected here, mirroring how the MSVC branch
+        # skips an unusable sanitizer while preserving the rest of the ci preset.
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          ls -1 "$LLVM_BIN" | grep '^clang' || true
+          C_BIN="$LLVM_BIN/clang-20"
+          [ -x "$C_BIN" ] || C_BIN="$LLVM_BIN/clang"
+          CXX_BIN="$LLVM_BIN/clang++-20"
+          [ -x "$CXX_BIN" ] || CXX_BIN="$LLVM_BIN/clang++"
+          cmake --preset ci \
+            -DCMAKE_C_COMPILER="$C_BIN" \
+            -DCMAKE_CXX_COMPILER="$CXX_BIN" \
+            -DINFINITY_ENABLE_SANITIZERS=OFF \
+            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
+
+      - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          cmake --build --preset ci
+
+      - name: Test (UBSan; ASan skipped on macOS, see Configure)
+        run: |
+          export PATH="$LLVM_BIN:$PATH"
+          ctest --preset ci --timeout 180
+
+  build-test-windows:
+    name: Build + Test (Windows, clang-cl latest, debug preset)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM + Ninja (choco)
+        run: choco install llvm ninja -y --no-progress
+
+      - name: Set up MSVC environment (for clang-cl STL/headers)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (clang-cl; MSVC frontend variant keeps /W4 /WX)
+        run: cmake --preset debug -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+        env:
+          CC: clang-cl
+          CXX: clang-cl
+
+      - name: Build
+        run: cmake --build --preset debug
+
+      - name: Test
+        run: ctest --preset debug
+
   format-check:
     name: clang-format check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang-format-18
+      - name: Install clang-format-20
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-format-18
+          sudo apt-get install -y --no-install-recommends clang-format-20
 
       - name: Check formatting
         run: ./scripts/format.sh --check

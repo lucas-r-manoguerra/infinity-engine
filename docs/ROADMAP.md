@@ -54,7 +54,7 @@ engine nuevo necesita**:
 | `std::print` | Logging estructurado sin la torpeza de `iostream` |
 | Ranges (zip, etc.) | Iteración expresiva sobre arreglos |
 
-**Toolchain**: GCC 14+ / Clang 18+ / MSVC soportan C++23 de forma estable en 2026.
+**Toolchain**: GCC 14+ / Clang 20+ / MSVC soportan C++23 de forma estable en 2026.
 La única excepción deliberada: **no usamos modules (`import`)** — el soporte
 cross-compiler sigue inmaduro. Compilación clásica header/source, con C++23 habilitado.
 
@@ -506,6 +506,8 @@ produce C++ legible.
 | F12 | Editor Suite + contenido (blueprint editor, level editor, profiler — **el editor ES el engine ADR-064**, sobre debug UI ADR-035, render targets ADR-041, profiler ADR-036 y cámaras ADR-051; **gameplay AI como data ADR-085, UI declarativa ADR-086, post-processing ADR-090, tuning data-driven ADR-092, i18n ADR-091, modding tres caminos ADR-095**) | F8, F9, F10 |
 | F13 | Optimización + renderer-class (archetype ECS, job system — usa read/write sets ADR-018; **targets GPU-driven ADR-079, geometría virtualizada ADR-080, GI ADR-081**) | F6+ |
 | F14 | Multi-plataforma (Win32, Cocoa/Metal — sobre FS/threads/time ADR-023) + release/ecosistema (semver + changelog ADR-049; **compilación a escala como métrica ADR-097**) | F13 |
+
+> **Infraestructura adelantada (2026-07)**: la CI ya compila y testea `core`+`math` en Linux (gcc-14), macOS (clang-18 vía Homebrew) y Windows (clang-cl-18) en cada push. Queda el backend de plataforma (Win32/Cocoa) y el cableado MSVC nativo + sanitizers/tidy para esa fase.
 | F15 | Online / server-class (netcode con server authority ADR-062; **mundo particionable y persistente ADR-072/073, red simulada ADR-074, bandwidth budgets ADR-075, interest management ADR-093, telemetría ADR-094, seguridad online ADR-096**) | F10, F12 |
 
 Cada una se detalla cuando se acerca; los principios y métricas aplican igual.

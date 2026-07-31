@@ -20,8 +20,8 @@ constexpr float INVERSE_EPSILON = 1e-12f;
 
 // Determinant of a 3x3 matrix stored row-major in a flat 9-float array.
 float det3(const std::array<float, 9>& a) {
-    return a[0] * (a[4] * a[8] - a[5] * a[7]) - a[1] * (a[3] * a[8] - a[5] * a[6]) +
-           a[2] * (a[3] * a[7] - a[4] * a[6]);
+    return (a[0] * (a[4] * a[8] - a[5] * a[7])) - (a[1] * (a[3] * a[8] - a[5] * a[6])) +
+           (a[2] * (a[3] * a[7] - a[4] * a[6]));
 }
 
 // Copies the 3x3 minor of `m` (column-major, m[col * 4 + row]) obtained by
@@ -36,7 +36,7 @@ void minor3x3(const Mat4& m, int excludedCol, int excludedRow, std::array<float,
             if (col == excludedCol) {
                 continue;
             }
-            out[i] = m.m[col * 4 + row];
+            out[i] = m.m[(col * 4) + row];
             ++i;
         }
     }
@@ -61,11 +61,11 @@ Mat4 invertAffine(const Mat4& m) {
     const float ty = m.m[13];
     const float tz = m.m[14];
 
-    const float a = m00 * m11 - m01 * m10;
-    const float b = m00 * m12 - m02 * m10;
-    const float c = m01 * m12 - m02 * m11;
+    const float a = (m00 * m11) - (m01 * m10);
+    const float b = (m00 * m12) - (m02 * m10);
+    const float c = (m01 * m12) - (m02 * m11);
 
-    const float det = m20 * c - m21 * b + m22 * a;
+    const float det = (m20 * c) - (m21 * b) + (m22 * a);
     if (std::abs(det) < INVERSE_EPSILON) {
         return Mat4::identity();
     }
@@ -81,9 +81,9 @@ Mat4 invertAffine(const Mat4& m) {
     result.m[8] = c * invDet;
     result.m[9] = -b * invDet;
     result.m[10] = a * invDet;
-    result.m[12] = -(result.m[0] * tx + result.m[4] * ty + result.m[8] * tz);
-    result.m[13] = -(result.m[1] * tx + result.m[5] * ty + result.m[9] * tz);
-    result.m[14] = -(result.m[2] * tx + result.m[6] * ty + result.m[10] * tz);
+    result.m[12] = -((result.m[0] * tx) + (result.m[4] * ty) + (result.m[8] * tz));
+    result.m[13] = -((result.m[1] * tx) + (result.m[5] * ty) + (result.m[9] * tz));
+    result.m[14] = -((result.m[2] * tx) + (result.m[6] * ty) + (result.m[10] * tz));
     result.m[15] = 1.0f;
     return result;
 }
@@ -178,9 +178,10 @@ Mat4 Mat4::operator*(const Mat4& other) const noexcept {
     Mat4 result;
     for (int col = 0; col < 4; ++col) {
         for (int row = 0; row < 4; ++row) {
-            result.m[col * 4 + row] =
-                m[0 * 4 + row] * other.m[col * 4 + 0] + m[1 * 4 + row] * other.m[col * 4 + 1] +
-                m[2 * 4 + row] * other.m[col * 4 + 2] + m[3 * 4 + row] * other.m[col * 4 + 3];
+            result.m[(col * 4) + row] = m[(0 * 4) + row] * other.m[(col * 4) + 0] +
+                                        m[(1 * 4) + row] * other.m[(col * 4) + 1] +
+                                        m[(2 * 4) + row] * other.m[(col * 4) + 2] +
+                                        m[(3 * 4) + row] * other.m[(col * 4) + 3];
         }
     }
     return result;
@@ -190,7 +191,7 @@ Mat4 Mat4::transposed() const noexcept {
     Mat4 result;
     for (int col = 0; col < 4; ++col) {
         for (int row = 0; row < 4; ++row) {
-            result.m[col * 4 + row] = m[row * 4 + col];
+            result.m[(col * 4) + row] = m[(row * 4) + col];
         }
     }
     return result;
@@ -229,20 +230,20 @@ Mat4 Mat4::inverted() const noexcept {
 
     // 2x2 minors of the top and bottom 2x2 row pairs. Each minor appears in two
     // cofactors, so computing them once halves the multiply count.
-    const float a0 = m00 * m11 - m01 * m10;
-    const float a1 = m00 * m12 - m02 * m10;
-    const float a2 = m00 * m13 - m03 * m10;
-    const float a3 = m01 * m12 - m02 * m11;
-    const float a4 = m01 * m13 - m03 * m11;
-    const float a5 = m02 * m13 - m03 * m12;
-    const float b0 = m20 * m31 - m21 * m30;
-    const float b1 = m20 * m32 - m22 * m30;
-    const float b2 = m20 * m33 - m23 * m30;
-    const float b3 = m21 * m32 - m22 * m31;
-    const float b4 = m21 * m33 - m23 * m31;
-    const float b5 = m22 * m33 - m23 * m32;
+    const float a0 = (m00 * m11) - (m01 * m10);
+    const float a1 = (m00 * m12) - (m02 * m10);
+    const float a2 = (m00 * m13) - (m03 * m10);
+    const float a3 = (m01 * m12) - (m02 * m11);
+    const float a4 = (m01 * m13) - (m03 * m11);
+    const float a5 = (m02 * m13) - (m03 * m12);
+    const float b0 = (m20 * m31) - (m21 * m30);
+    const float b1 = (m20 * m32) - (m22 * m30);
+    const float b2 = (m20 * m33) - (m23 * m30);
+    const float b3 = (m21 * m32) - (m22 * m31);
+    const float b4 = (m21 * m33) - (m23 * m31);
+    const float b5 = (m22 * m33) - (m23 * m32);
 
-    const float det = a0 * b5 - a1 * b4 + a2 * b3 + a3 * b2 - a4 * b1 + a5 * b0;
+    const float det = (a0 * b5) - (a1 * b4) + (a2 * b3) + (a3 * b2) - (a4 * b1) + (a5 * b0);
     if (std::abs(det) < INVERSE_EPSILON) {
         return identity();
     }
@@ -281,7 +282,8 @@ float Mat4::determinant() const noexcept {
     minor3x3(*this, 1, 0, minor1);
     minor3x3(*this, 2, 0, minor2);
     minor3x3(*this, 3, 0, minor3);
-    return m[0] * det3(minor0) - m[4] * det3(minor1) + m[8] * det3(minor2) - m[12] * det3(minor3);
+    return (m[0] * det3(minor0)) - (m[4] * det3(minor1)) + (m[8] * det3(minor2)) -
+           (m[12] * det3(minor3));
 }
 
 bool Mat4::operator==(const Mat4& other) const noexcept {
@@ -297,14 +299,14 @@ bool Mat4::operator!=(const Mat4& other) const noexcept { return !(*this == othe
 
 Vec4 operator*(const Mat4& matrix, const Vec4& vector) noexcept {
     return Vec4{
-        matrix.m[0] * vector.x + matrix.m[4] * vector.y + matrix.m[8] * vector.z +
-            matrix.m[12] * vector.w,
-        matrix.m[1] * vector.x + matrix.m[5] * vector.y + matrix.m[9] * vector.z +
-            matrix.m[13] * vector.w,
-        matrix.m[2] * vector.x + matrix.m[6] * vector.y + matrix.m[10] * vector.z +
-            matrix.m[14] * vector.w,
-        matrix.m[3] * vector.x + matrix.m[7] * vector.y + matrix.m[11] * vector.z +
-            matrix.m[15] * vector.w,
+        (matrix.m[0] * vector.x) + (matrix.m[4] * vector.y) + (matrix.m[8] * vector.z) +
+            (matrix.m[12] * vector.w),
+        (matrix.m[1] * vector.x) + (matrix.m[5] * vector.y) + (matrix.m[9] * vector.z) +
+            (matrix.m[13] * vector.w),
+        (matrix.m[2] * vector.x) + (matrix.m[6] * vector.y) + (matrix.m[10] * vector.z) +
+            (matrix.m[14] * vector.w),
+        (matrix.m[3] * vector.x) + (matrix.m[7] * vector.y) + (matrix.m[11] * vector.z) +
+            (matrix.m[15] * vector.w),
     };
 }
 
@@ -312,9 +314,12 @@ Vec3 operator*(const Mat4& matrix, const Vec3& vector) noexcept {
     // Treats vector as (x, y, z, 1). Assumes an affine matrix (no perspective
     // division by the resulting w, see header); returns the transformed xyz.
     return Vec3{
-        matrix.m[0] * vector.x + matrix.m[4] * vector.y + matrix.m[8] * vector.z + matrix.m[12],
-        matrix.m[1] * vector.x + matrix.m[5] * vector.y + matrix.m[9] * vector.z + matrix.m[13],
-        matrix.m[2] * vector.x + matrix.m[6] * vector.y + matrix.m[10] * vector.z + matrix.m[14],
+        (matrix.m[0] * vector.x) + (matrix.m[4] * vector.y) + (matrix.m[8] * vector.z) +
+            matrix.m[12],
+        (matrix.m[1] * vector.x) + (matrix.m[5] * vector.y) + (matrix.m[9] * vector.z) +
+            matrix.m[13],
+        (matrix.m[2] * vector.x) + (matrix.m[6] * vector.y) + (matrix.m[10] * vector.z) +
+            matrix.m[14],
     };
 }
 

@@ -40,7 +40,7 @@ bool ThreadPool::trySubmit(Task task, void* userData) noexcept {
         if (m_stopped || m_size == m_queue.size()) {
             return false;
         }
-        m_queue[m_tail] = TaskItem{task, userData};
+        m_queue[m_tail] = TaskItem{.fn = task, .data = userData};
         m_tail = (m_tail + 1) % m_queue.size();
         ++m_size;
     }
@@ -56,7 +56,7 @@ void ThreadPool::submit(Task task, void* userData) noexcept {
         if (m_stopped) {
             return;
         }
-        m_queue[m_tail] = TaskItem{task, userData};
+        m_queue[m_tail] = TaskItem{.fn = task, .data = userData};
         m_tail = (m_tail + 1) % m_queue.size();
         ++m_size;
     }

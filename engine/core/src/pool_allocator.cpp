@@ -119,8 +119,8 @@ void PoolAllocator::acquireBlock() noexcept {
 void PoolAllocator::initFreeList() noexcept {
     auto* block = static_cast<unsigned char*>(m_block);
     for (size_t i = 0; i < m_capacity; ++i) {
-        void* slot = block + i * m_slotSize;
-        void* next = (i + 1 < m_capacity) ? block + (i + 1) * m_slotSize : nullptr;
+        void* slot = block + (i * m_slotSize);
+        void* next = (i + 1 < m_capacity) ? block + ((i + 1) * m_slotSize) : nullptr;
         *static_cast<void**>(slot) = next;
     }
     m_freeHead = m_block;
