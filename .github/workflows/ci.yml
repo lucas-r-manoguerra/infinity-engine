@@ -94,28 +94,64 @@ jobs:
 
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
         # macOS does not ship GNU `timeout`, so python3 bounds each test binary
-        # at 90s and streams doctest's success reporter live. On a hang the
-        # log ends at the TEST CASE header of the culprit and the job fails in
-        # ~90s instead of burning runner time on an unresponsive binary.
+        # at 90s. The child runs under a pty: stdout is then line-buffered, so
+        # doctest's banner and every TEST CASE header stream live into the log
+        # instead of dying in a block buffer on SIGKILL. On a hang the log ends
+        # at the culprit's TEST CASE header and the job fails in ~90s.
         run: |
           export PATH="$LLVM_BIN:$PATH"
+          export ASAN_OPTIONS="detect_leaks=0:halt_on_error=1"
           python3 - <<'EOF'
-          import glob, subprocess, sys
+          import glob, os, pty, select, sys, time
+
+          def run_timed(binary, seconds):
+              deadline = time.monotonic() + seconds
+              pid, fd = pty.fork()
+              if pid == 0:
+                  os.execv(binary, [binary, "-s"])
+              os.set_blocking(fd, False)
+              timed_out = False
+              while True:
+                  remaining = deadline - time.monotonic()
+                  if remaining <= 0:
+                      timed_out = True
+                      break
+                  try:
+                      r, _, _ = select.select([fd], [], [], min(remaining, 1.0))
+                  except InterruptedError:
+                      continue
+                  if fd in r:
+                      try:
+                          data = os.read(fd, 65536)
+                      except OSError:
+                          break
+                      if not data:
+                          break
+                      sys.stdout.buffer.write(data)
+                      sys.stdout.buffer.flush()
+              if timed_out:
+                  print(f"TIMEOUT: {binary} hung after {seconds}s; "
+                        f"last TEST CASE above is the culprit", file=sys.stderr, flush=True)
+                  try:
+                      os.kill(pid, 9)
+                  except ProcessLookupError:
+                      pass
+              _, status = os.waitpid(pid, 0)
+              rc = os.waitstatus_to_exitcode(status)
+              if timed_out:
+                  sys.exit(124)
+              return rc
+
           bins = sorted(glob.glob("build/ci/tests/**/*_tests", recursive=True))
           if not bins:
               print("no test binaries found", file=sys.stderr)
               sys.exit(1)
           for binary in bins:
               print(f"=== {binary} ===", flush=True)
-              try:
-                  result = subprocess.run([binary, "-s"], timeout=90)
-              except subprocess.TimeoutExpired:
-                  print(f"TIMEOUT: {binary} hung after 90s; "
-                        f"last TEST CASE above is the culprit", file=sys.stderr)
-                  sys.exit(124)
-              if result.returncode != 0:
-                  print(f"FAILED: {binary} rc={result.returncode}", file=sys.stderr)
-                  sys.exit(result.returncode)
+              rc = run_timed(binary, 90)
+              if rc != 0:
+                  print(f"FAILED: {binary} rc={rc}", file=sys.stderr, flush=True)
+                  sys.exit(rc)
           EOF
 
   build-test-windows:
