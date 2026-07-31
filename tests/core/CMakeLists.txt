@@ -3,11 +3,13 @@ infinity_add_test(infinity_core_tests
     allocator_test.cpp
     arena_allocator_test.cpp
     error_test.cpp
+    fault_injector_test.cpp
     pool_allocator_test.cpp
     version_test.cpp
 )
 
-target_link_libraries(infinity_core_tests PRIVATE infinity_core)
+find_package(Threads REQUIRED)
+target_link_libraries(infinity_core_tests PRIVATE infinity_core Threads::Threads)
 
 # clang-tidy-18 reports __cpp_concepts=201907L even under -std=c++23, so libstdc++ 15
 # hides std::expected (gated on __cpp_concepts >= 202002L). clang 19+ fixed the value;
