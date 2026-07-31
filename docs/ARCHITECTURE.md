@@ -111,7 +111,7 @@ Sin rastro del código original.
 define el orden de construcción módulo por módulo.
 
 ### ADR-002: C++23 (no C++20), headers clásicos
-**Contexto**: C++23 está bien soportado en GCC 14+/Clang 18+/MSVC.
+**Contexto**: C++23 está bien soportado en GCC 14+/Clang 20+/MSVC.
 **Decisión**: `CMAKE_CXX_STANDARD 23`. Se usan `std::expected`, `std::flat_map/set`,
 `deducing this`, `std::print`. **No** se usan modules (`import`) — el soporte
 cross-compiler sigue inmaduro; compilación clásica header/source.
@@ -330,7 +330,7 @@ revisión del código humano.
 **Contexto**: "Works on my machine" es el enemigo #1 de los proyectos colosales.
 Versiones de compilador y deps que flotan rompen builds a mitad de camino.
 **Decisión**: Toolchain **fijado y reproducible**: compiladores pinnados
-(GCC 14+/Clang 18+ exactos), presets CMake versionados, devcontainer o Docker
+(GCC 14+/Clang 20+ exactos), presets CMake versionados, devcontainer o Docker
 con el entorno completo, CI reproducible desde el mismo entorno.
 **Consecuencia**: El build es el mismo en cualquier máquina y en CI. Los bugs
 de "versión de compilador" desaparecen.

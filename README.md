@@ -78,7 +78,7 @@ Volumen estimado del C++: ~500 líneas en F0, ~4.000 en F1, ~45.000 en F9–F12,
 
 ## ⚡ Empezar en 3 comandos
 
-Requisitos: CMake 3.24+, un compilador C++23 (GCC 14+ / Clang 18+) y Ninja.
+Requisitos: CMake 3.24+, un compilador C++23 (GCC 14+ / Clang 20+) y Ninja.
 
 ```bash
 cmake --preset debug          # configurar (primera vez o al cambiar CMake)

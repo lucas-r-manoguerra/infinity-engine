@@ -1,6 +1,7 @@
 // tests/math/mat4_test.cpp
 #include "infinity/math/mat4.h"
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <utility>
@@ -33,7 +34,7 @@ bool matricesNear(const Mat4& a, const Mat4& b) {
 // fairly. Used by the cross-implementation inverse tests.
 bool matricesNear(const Mat4& a, const Mat4& b, float tolerance) {
     for (int i = 0; i < 16; ++i) {
-        const float scale = std::max(1.0f, std::max(std::abs(a.m[i]), std::abs(b.m[i])));
+        const float scale = std::max({1.0f, std::abs(a.m[i]), std::abs(b.m[i])});
         if (!(std::abs(a.m[i] - b.m[i]) <= tolerance * scale)) {
             return false;
         }
@@ -50,9 +51,9 @@ Mat4 gaussJordanInverse(const Mat4& input) {
 
     for (int col = 0; col < 4; ++col) {
         int pivot = col;
-        float best = std::abs(aug.m[col * 4 + col]);
+        float best = std::abs(aug.m[(col * 4) + col]);
         for (int row = col + 1; row < 4; ++row) {
-            const float candidate = std::abs(aug.m[col * 4 + row]);
+            const float candidate = std::abs(aug.m[(col * 4) + row]);
             if (candidate > best) {
                 best = candidate;
                 pivot = row;
@@ -63,26 +64,26 @@ Mat4 gaussJordanInverse(const Mat4& input) {
         }
         if (pivot != col) {
             for (int k = 0; k < 4; ++k) {
-                std::swap(aug.m[k * 4 + col], aug.m[k * 4 + pivot]);
-                std::swap(inv.m[k * 4 + col], inv.m[k * 4 + pivot]);
+                std::swap(aug.m[(k * 4) + col], aug.m[(k * 4) + pivot]);
+                std::swap(inv.m[(k * 4) + col], inv.m[(k * 4) + pivot]);
             }
         }
-        const float pivotValue = aug.m[col * 4 + col];
+        const float pivotValue = aug.m[(col * 4) + col];
         for (int k = 0; k < 4; ++k) {
-            aug.m[k * 4 + col] /= pivotValue;
-            inv.m[k * 4 + col] /= pivotValue;
+            aug.m[(k * 4) + col] /= pivotValue;
+            inv.m[(k * 4) + col] /= pivotValue;
         }
         for (int row = 0; row < 4; ++row) {
             if (row == col) {
                 continue;
             }
-            const float factor = aug.m[col * 4 + row];
+            const float factor = aug.m[(col * 4) + row];
             if (factor == 0.0f) {
                 continue;
             }
             for (int k = 0; k < 4; ++k) {
-                aug.m[k * 4 + row] -= factor * aug.m[k * 4 + col];
-                inv.m[k * 4 + row] -= factor * inv.m[k * 4 + col];
+                aug.m[(k * 4) + row] -= factor * aug.m[(k * 4) + col];
+                inv.m[(k * 4) + row] -= factor * inv.m[(k * 4) + col];
             }
         }
     }
@@ -112,7 +113,7 @@ TEST_CASE("Mat4 identity has ones on the diagonal and zeros elsewhere") {
     const Mat4 i = Mat4::identity();
     for (int row = 0; row < 4; ++row) {
         for (int col = 0; col < 4; ++col) {
-            CHECK(i.m[col * 4 + row] == (row == col ? 1.0f : 0.0f));
+            CHECK(i.m[(col * 4) + row] == (row == col ? 1.0f : 0.0f));
         }
     }
 }
@@ -399,7 +400,7 @@ TEST_CASE("Mat4 inverse matches the Gauss-Jordan reference for random general ma
         Mat4 m;
         for (int row = 0; row < 4; ++row) {
             for (int col = 0; col < 4; ++col) {
-                m.m[col * 4 + row] = row == col ? diag(rng) : offDiag(rng);
+                m.m[(col * 4) + row] = row == col ? diag(rng) : offDiag(rng);
             }
         }
         CHECK(matricesNear(m.inverted(), gaussJordanInverse(m), 1e-3f));

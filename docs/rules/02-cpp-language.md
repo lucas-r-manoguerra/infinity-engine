@@ -5,7 +5,7 @@
 ## Estándar y toolchain
 
 - **C++23** (`CMAKE_CXX_STANDARD 23`). No se usan modules (`import`) — compilación clásica.
-- Compiladores: GCC 14+ / Clang 18+. Builds con `-Wall -Wextra -Werror`.
+- Compiladores: GCC 14+ / Clang 20+. Builds con `-Wall -Wextra -Werror`.
 - `-fno-exceptions`. Sin RTTI salvo decisión explícita por módulo.
 
 ## Naming

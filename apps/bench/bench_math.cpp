@@ -71,7 +71,7 @@ BenchmarkResult runBenchmark(const char* name, size_t warmupIters, size_t measur
     const auto end = std::chrono::steady_clock::now();
     const double nsPerOp = std::chrono::duration<double, std::nano>(end - start).count() /
                            static_cast<double>(measuredIters);
-    return {name, nsPerOp};
+    return {.name = name, .nsPerOp = nsPerOp};
 }
 
 // Prints the machine-parseable line and the human summary line.

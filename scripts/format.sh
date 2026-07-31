@@ -8,7 +8,7 @@
 #   ./scripts/format.sh --check    CI mode: clang-format --dry-run --Werror
 #                                  plus clang-tidy over the compile database
 #
-# clang-format-18 is preferred, clang-format is the fallback. clang-tidy
+# clang-format-20 is preferred, clang-format is the fallback. clang-tidy
 # requires a configured preset build (build/<preset>/compile_commands.json);
 # the script skips it with a warning when that is unavailable.
 
@@ -26,7 +26,7 @@ esac
 resolve() {
     local tool="$1"
     local candidate
-    for candidate in "${tool}-18" "${tool}"; do
+    for candidate in "${tool}-20" "${tool}"; do
         if command -v "${candidate}" >/dev/null 2>&1; then
             echo "${candidate}"
             return 0
@@ -39,7 +39,7 @@ CLANG_FORMAT="$(resolve clang-format || true)"
 RUN_CLANG_TIDY="$(resolve run-clang-tidy || true)"
 
 if [[ -z "${CLANG_FORMAT}" ]]; then
-    echo "error: clang-format-18 or clang-format not found" >&2
+    echo "error: clang-format-20 or clang-format not found" >&2
     exit 1
 fi
 
