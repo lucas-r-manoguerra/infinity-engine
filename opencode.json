@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicepkg/opencode/refs/heads/main/opencode.schema.json",
+  "instructions": [
+    "docs/rules/INDEX.md",
+    "docs/rules/01-architecture.md",
+    "docs/rules/02-cpp-language.md",
+    "docs/rules/03-memory.md",
+    "docs/rules/04-errors.md",
+    "docs/rules/05-build.md",
+    "docs/rules/06-testing.md",
+    "docs/rules/07-math-conventions.md",
+    "docs/rules/08-performance.md",
+    "docs/rules/09-opencode-harness.md",
+    "docs/rules/10-github.md",
+    "docs/rules/11-determinism.md"
+  ],
+  "skills": {
+    "auto_load": true,
+    "context": {
+      "always_include": [
+        "clean-code",
+        "cpp-coding-standards",
+        "cpp-testing",
+        "benchmark",
+        "tdd"
+      ]
+    }
+  }
+}

@@ -1,32 +1,34 @@
-# Infinity Engine — Rules
+# Infinity Engine — Reglas de Desarrollo (C++)
 
-Este directorio contiene TODAS las reglas del proyecto. Cada archivo cubre un área específica y debe ser mantenido tan conciso como sea posible.
+> Reglas operativas para trabajar en este repo. Están pensadas para que **opencode**
+> (o cualquier agente) pueda leer, modificar y verificar código con precisión.
+>
+> opencode carga automáticamente estas reglas (configuradas en `opencode.json`).
+> **Léelas todas antes de tocar código.** Las reglas son pocas pero son ley.
 
-## Core
-| # | Archivo | Área |
-|---|---------|------|
-| 01 | [01-architecture.md](01-architecture.md) | Límites entre módulos, dirección de dependencias |
-| 02 | [02-testing.md](02-testing.md) | Testing first, cobertura, mirror structure |
-| 03 | [03-code-style.md](03-code-style.md) | Naming, estructura de archivo, imports |
-| 04 | [04-memory.md](04-memory.md) | Allocators explícitos, arena discipline |
-| 05 | [05-error-handling.md](05-error-handling.md) | Error sets, propagación, categorías |
-| 06 | [06-dependencies.md](06-dependencies.md) | Política de dependencias, build, CI gates |
-| 07 | [07-platform.md](07-platform.md) | Abstracción de plataforma, interface/backend |
-| 08 | [08-ai-blueprint.md](08-ai-blueprint.md) | AI nativa, Blueprint VM, protocolo de contexto |
-| 09 | [09-performance.md](09-performance.md) | Frame budget, optimization process, tracking |
+## Índice
 
-## Engine Domains
-| # | Archivo | Área |
-|---|---------|------|
-| 10 | [10-ecs.md](10-ecs.md) | ECS: componentes, sistemas, queries, entity lifecycle |
-| 11 | [11-math-conventions.md](11-math-conventions.md) | Sistema de coordenadas, handedness, matrices |
-| 12 | [12-logging.md](12-logging.md) | Logging estructurado, compile-time stripping, diagnostics |
-| 13 | [13-api-visibility.md](13-api-visibility.md) | Export tiers, deprecation protocol, @experimental |
-| 14 | [14-input.md](14-input.md) | Action mapping, bindings, abstracción de input |
-| 15 | [15-renderer.md](15-renderer.md) | Interfaz de backend de renderizado, extensibilidad |
-| 16 | [16-github.md](16-github.md) | Issues, PRs, releases, CI/CD, branch strategy |
-| 17 | [17-benchmarking.md](17-benchmarking.md) | Hotspots, harness, gates, build integration |
+| Regla | Tema | Cuándo aplica |
+|---|---|---|
+| [01-architecture](01-architecture.md) | Capas, módulos, dependencias | Siempre |
+| [02-cpp-language](02-cpp-language.md) | C++23, naming, estructura de archivos | Al escribir código |
+| [03-memory](03-memory.md) | Allocators, ownership, leaks | Al escribir código |
+| [04-errors](04-errors.md) | `std::expected`, sin excepciones | Al escribir código |
+| [05-build](05-build.md) | CMake, presets, comandos exactos | Antes de buildear |
+| [06-testing](06-testing.md) | doctest, CTest, test-first | Antes de escribir features |
+| [07-math-conventions](07-math-conventions.md) | Sistema de coordenadas, matrices | Al tocar math |
+| [08-performance](08-performance.md) | Frame budget, hot paths, benchmarks | Al tocar hot paths |
+| [09-opencode-harness](09-opencode-harness.md) | Flujo de verificación del agente | Siempre |
+| [10-github](10-github.md) | Commits, PRs, CI | Antes de commitear |
+| [11-determinism](11-determinism.md) | Determinismo, RNG, no hidden state | Siempre |
 
----
+## Reglas transversales (aplican a TODO)
 
-**Regla de oro**: si una regla no está escrita, no existe. Si existe pero no se aplica, es deuda técnica.
+1. **Testing First**: no se escribe una función sin su test. Punto.
+2. **One File = One Task**: si un archivo pasa ~300 líneas, se divide.
+3. **Dependencias sí, acoplarse nunca** (ADR-061): las dependencias se vendorean en
+   `third_party/` tras una interfaz propia — se integran, no se reinventan. Nada de
+   apt-get install de librerías, nada de FetchContent, licencia auditada (ADR-068).
+4. **Verificar antes de declarar done**: un cambio no está terminado hasta que
+   `ctest` pasa verde y ASan no reporta leaks.
+5. **Docs en español, código en inglés.**
