@@ -96,11 +96,12 @@ jobs:
         # Isolate a startup hang: a trivial ASan+UBSan+thread binary runs
         # before the suite. If THIS hangs, the runner's sanitizer runtime is
         # the problem, not the engine. perl alarm is the portable timeout on
-        # macOS (no GNU timeout).
+        # macOS (no GNU timeout). The keg has no clang++-20 binary, only the
+        # unversioned clang++ (same reason Configure falls back to it).
         run: |
           export PATH="$LLVM_BIN:$PATH"
           printf '#include <thread>\nint main() { std::thread t([]{}); t.join(); return 0; }\n' > /tmp/probe.cpp
-          clang++-20 -std=c++23 -fsanitize=address,undefined -g /tmp/probe.cpp -o /tmp/probe
+          clang++ -std=c++23 -fsanitize=address,undefined -g /tmp/probe.cpp -o /tmp/probe
           perl -e 'alarm 30; exec @ARGV' /tmp/probe && echo "ASAN+UBSAN+THREAD PROBE OK"
 
       - name: Test (ASan/UBSan; LSan is unavailable on macOS by design)
