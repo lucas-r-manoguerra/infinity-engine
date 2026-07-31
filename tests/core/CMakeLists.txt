@@ -4,7 +4,9 @@ infinity_add_test(infinity_core_tests
     arena_allocator_test.cpp
     error_test.cpp
     fault_injector_test.cpp
+    loop_test.cpp
     pool_allocator_test.cpp
+    time_test.cpp
     version_test.cpp
 )
 
