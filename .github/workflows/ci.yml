@@ -23,7 +23,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build ccache \
-            clang-20 clang-format-20 clang-tidy-20
+            clang-20 clang-format-20 clang-tidy-20 \
+            libclang-rt-20-dev
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -72,12 +73,19 @@ jobs:
       - name: Configure
         # Full compiler paths: CMake requires either a name on PATH or an
         # absolute path for the compiler. The local PATH export also lets
-        # InfinityToolchain find clang-tidy-20 during configure.
+        # InfinityToolchain find clang-tidy-20 during configure. Runner images
+        # differ in keg layout (versioned clang++-20 vs plain clang++), so fall
+        # back to the unversioned names and log what the keg actually provides.
         run: |
           export PATH="$LLVM_BIN:$PATH"
+          ls -1 "$LLVM_BIN" | grep '^clang' || true
+          C_BIN="$LLVM_BIN/clang-20"
+          [ -x "$C_BIN" ] || C_BIN="$LLVM_BIN/clang"
+          CXX_BIN="$LLVM_BIN/clang++-20"
+          [ -x "$CXX_BIN" ] || CXX_BIN="$LLVM_BIN/clang++"
           cmake --preset ci \
-            -DCMAKE_C_COMPILER="$LLVM_BIN/clang-20" \
-            -DCMAKE_CXX_COMPILER="$LLVM_BIN/clang++-20"
+            -DCMAKE_C_COMPILER="$C_BIN" \
+            -DCMAKE_CXX_COMPILER="$CXX_BIN"
 
       - name: Build (runs clang-tidy via CMAKE_CXX_CLANG_TIDY)
         run: |
