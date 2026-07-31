@@ -1,5 +1,6 @@
 infinity_add_test(infinity_core_tests
     main.cpp
+    allocator_test.cpp
     version_test.cpp
 )
 
