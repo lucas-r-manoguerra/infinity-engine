@@ -10,6 +10,14 @@
 | `release` | Benchmarks y entrega | `-O2`, sin sanitizers, asserts off |
 | `ci` | GitHub Actions | Idéntico a debug + clang-tidy + clang-format check |
 
+> **Excepción macOS (CI)**: el job `ci` en runners macOS arm64 compila con
+> **UBSan-only** — el runtime ASan del keg `llvm@20` de Homebrew cuelga al
+> arrancar (un binario trivial con ASan muere por SIGALRM; UBSan corre bien).
+> El workflow inyecta `-fsanitize=undefined` con `INFINITY_ENABLE_SANITIZERS=OFF`,
+> igual que la rama MSVC saltea un sanitizer inutilizable. Localmente en macOS
+> se puede seguir usando el preset `debug` completo si el runtime de la máquina
+> no presenta el bug.
+
 ## Comandos (siempre estos, desde la raíz del repo)
 
 ```bash
