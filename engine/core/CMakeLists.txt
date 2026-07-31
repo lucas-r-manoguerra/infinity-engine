@@ -5,7 +5,6 @@ add_library(infinity_core STATIC
     src/pool_allocator.cpp
     src/thread_pool.cpp
     src/time.cpp
-    src/utf8.cpp
     src/version.cpp
 )
 
