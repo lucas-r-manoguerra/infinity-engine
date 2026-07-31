@@ -1,0 +1,11 @@
+infinity_add_test(infinity_math_tests
+    main.cpp
+    vec2_test.cpp
+    vec3_test.cpp
+    vec4_test.cpp
+    mat4_test.cpp
+    quat_test.cpp
+    transform_test.cpp
+)
+
+target_link_libraries(infinity_math_tests PRIVATE infinity::math)

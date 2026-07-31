@@ -291,14 +291,14 @@ Infinity-Engine/
 metodología: operaciones deterministas, fáciles de validar.
 
 **Tareas**:
-- [ ] F1.1 Tipos SIMD-ready (`alignas(16)`, data flat `[16]f32` column-major)
-- [ ] F1.2 Vec3/Vec4: operaciones + normalización
-- [ ] F1.3 Mat4: multiplicación, inversa, transpose, proyecciones
-- [ ] F1.4 Quat: slerp, normalize, conversión YPR (grados API / radianes interno)
-- [ ] F1.5 Transform TRS (SRT order)
-- [ ] F1.6 Benchmarks math (`apps/bench`, Release)
-- [ ] F1.7 Tests con doctest para TODAS las operaciones públicas
-- [ ] F1.8 Math determinista (ADR-056): sin `-ffast-math`, política NaN/Inf explícita, invariantes portable
+- [x] F1.1 Tipos SIMD-ready (`alignas(16)`, data flat `[16]f32` column-major)
+- [x] F1.2 Vec3/Vec4: operaciones + normalización
+- [x] F1.3 Mat4: multiplicación, inversa, transpose, proyecciones
+- [x] F1.4 Quat: slerp, normalize, conversión YPR (grados API / radianes interno)
+- [x] F1.5 Transform TRS (SRT order)
+- [x] F1.6 Benchmarks math (`apps/bench`, Release)
+- [x] F1.7 Tests con doctest para TODAS las operaciones públicas
+- [x] F1.8 Math determinista (ADR-056): sin `-ffast-math`, política NaN/Inf explícita, invariantes portable
 
 **Criterios**: 100% de operaciones públicas testeadas, 0 leaks (ASan), benchmarks
 dentro de los targets documentados (mat4.mul ~34ns, inverse ~18ns, quat.slerp ~75ns)
@@ -611,4 +611,4 @@ F15:       ~15.000        (online: netcode, partición, telemetría, seguridad)
 3. ⏳ F0.1 — Layout CMake + presets
 4. ⏳ F0.2-F0.4 — Toolchain, doctest vendored, sanitizers
 5. ⏳ F0.5-F0.7 — CI + format/lint + verificación del harness opencode
-6. ⏳ F1 — Math Core
+6. ✅ F1 — Math Core

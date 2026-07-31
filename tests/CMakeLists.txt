@@ -26,3 +26,4 @@ function(infinity_add_test target_name)
 endfunction()
 
 add_subdirectory(core)
+add_subdirectory(math)
