@@ -1,6 +1,7 @@
 // tests/core/version_test.cpp
 #include "infinity/core/version.h"
 
+#include <ostream>
 #include <string_view>
 
 #include <doctest/doctest.h>
