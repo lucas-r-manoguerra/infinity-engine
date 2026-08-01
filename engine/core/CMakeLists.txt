@@ -10,6 +10,7 @@ add_library(infinity_core STATIC
     src/system_registry.cpp
     src/thread_pool.cpp
     src/time.cpp
+    src/time_budgets.cpp
     src/utf8.cpp
     src/version.cpp
 )
