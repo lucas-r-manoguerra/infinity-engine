@@ -326,7 +326,7 @@ de todas las demás (ADR-005).
 - [ ] F2.8 Abstracción FS/threads/time + UTF-8 (ADR-023) en core — UTF-8 (F2.8a): `Utf8View` + `CoreError::INVALID_UTF8` listos; FS (F2.8b): interfaz `FileSystem` + backend in-memory con fault injection listos (backends OS en F3.5)
 - [x] F2.9 Property-based tests + fuzzing base (ADR-017): invariantes de math y round-trips
 - [x] F2.10 Benchmarks de memoria (arena alloc objetivo <60ns): medido 5.3ns/op en release (CPU Ryzen 5 7600, clang 20), 11x bajo el target
-- [ ] F2.11 `SystemRegistry` declarativo (ADR-014): init/shutdown resuelto por dependencias
+- [x] F2.11 `SystemRegistry` declarativo (ADR-014): init/shutdown por dependencias con detección de ciclos
 - [ ] F2.12 Memory budgets por subsistema (ADR-034): presupuesto + alerta al superarlo
 - [ ] F2.13 Profiler jerárquico base (ADR-036): spans sin allocaciones, capture de frame
 

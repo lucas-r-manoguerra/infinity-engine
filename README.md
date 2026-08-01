@@ -109,7 +109,7 @@ Infinity-Engine/
 ├── ⚙️ CMakeLists.txt / CMakePresets.json   # presets debug / release / ci
 ├── cmake/            # toolchain, warnings, sanitizers
 ├── 🔩 engine/         # el engine — CADA módulo = static library
-│   ├── core/         # Allocator, Time, Loop, Diagnostics, ThreadPool
+│   ├── core/         # Allocator, Time, Loop, Diagnostics, ThreadPool, SystemRegistry
 │   ├── math/         # Vec2/3/4, Mat4, Quat, Transform
 │   ├── platform/     # Window, Input + backends (X11…)
 │   ├── ecs/          # World, Entity, Component, System, Query
