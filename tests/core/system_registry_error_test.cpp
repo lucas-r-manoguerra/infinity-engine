@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <expected>
 #include <initializer_list>
+#include <ostream>
 #include <span>
 #include <string_view>
 
