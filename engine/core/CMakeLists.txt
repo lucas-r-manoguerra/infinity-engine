@@ -6,6 +6,7 @@ add_library(infinity_core STATIC
     src/fs_in_memory.cpp
     src/loop.cpp
     src/pool_allocator.cpp
+    src/profiler.cpp
     src/system_registry.cpp
     src/thread_pool.cpp
     src/time.cpp
