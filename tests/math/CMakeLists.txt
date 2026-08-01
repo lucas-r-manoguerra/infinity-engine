@@ -6,8 +6,10 @@ infinity_add_test(infinity_math_tests
     mat4_test.cpp
     quat_test.cpp
     transform_test.cpp
+    mat4_property_test.cpp
     quat_property_test.cpp
     vec3_property_test.cpp
+    transform_property_test.cpp
 )
 
 target_link_libraries(infinity_math_tests PRIVATE infinity::math infinity_core)
