@@ -64,9 +64,15 @@ enum class CoreError : uint8_t {
     IO_INVALID_DATA,          ///< io - the data does not match the expected format
     INVALID_UTF8, ///< invalid_argument - a byte sequence is not well-formed UTF-8 (F2.8a, Unicode
                   ///< Table 3-7)
-    IO_ALREADY_EXISTS, ///< io - the file or path already exists (F2.8, ADR-023)
-    IO_WRONG_TYPE,     ///< io - the path exists but has the wrong kind (file vs directory) (F2.8,
-                       ///< ADR-023)
+    IO_ALREADY_EXISTS,  ///< io - the file or path already exists (F2.8, ADR-023)
+    IO_WRONG_TYPE,      ///< io - the path exists but has the wrong kind (file vs directory) (F2.8,
+                        ///< ADR-023)
+    DUPLICATE_SYSTEM,   ///< invalid_argument - a system name is already registered (F2.11, ADR-014)
+    UNKNOWN_DEPENDENCY, ///< invalid_argument - a declared dependency is not a registered system
+                        ///< (F2.11, ADR-014)
+    DEPENDENCY_CYCLE,   ///< invalid_state - system dependencies form a cycle (F2.11, ADR-014)
+    INVALID_ARGUMENT,   ///< invalid_argument - a caller-supplied argument is not usable (F2.11,
+                        ///< ADR-014)
 };
 
 // Maps a CoreError to its category. Constexpr so mappings are verifiable at
@@ -81,11 +87,15 @@ enum class CoreError : uint8_t {
         return ErrorCategory::RESOURCE;
     case CoreError::ALREADY_INITIALIZED:
     case CoreError::NOT_INITIALIZED:
+    case CoreError::DEPENDENCY_CYCLE:
         return ErrorCategory::INVALID_STATE;
     case CoreError::INVALID_ALIGNMENT:
     case CoreError::INVALID_SIZE:
     case CoreError::OUT_OF_BOUNDS:
     case CoreError::INVALID_UTF8:
+    case CoreError::DUPLICATE_SYSTEM:
+    case CoreError::UNKNOWN_DEPENDENCY:
+    case CoreError::INVALID_ARGUMENT:
         return ErrorCategory::INVALID_ARGUMENT;
     case CoreError::UNSUPPORTED:
         return ErrorCategory::NOT_SUPPORTED;
@@ -139,6 +149,14 @@ enum class CoreError : uint8_t {
         return "io_wrong_type";
     case CoreError::INVALID_UTF8:
         return "invalid_utf8";
+    case CoreError::DUPLICATE_SYSTEM:
+        return "duplicate_system";
+    case CoreError::UNKNOWN_DEPENDENCY:
+        return "unknown_dependency";
+    case CoreError::DEPENDENCY_CYCLE:
+        return "dependency_cycle";
+    case CoreError::INVALID_ARGUMENT:
+        return "invalid_argument";
     }
     return "unknown";
 }

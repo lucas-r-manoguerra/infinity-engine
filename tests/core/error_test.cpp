@@ -29,6 +29,14 @@ static_assert(infinity::core::categoryOf(infinity::core::CoreError::NOT_INITIALI
               infinity::core::ErrorCategory::INVALID_STATE);
 static_assert(infinity::core::categoryOf(infinity::core::CoreError::IO_PERMISSION_DENIED) ==
               infinity::core::ErrorCategory::IO);
+static_assert(infinity::core::categoryOf(infinity::core::CoreError::DUPLICATE_SYSTEM) ==
+              infinity::core::ErrorCategory::INVALID_ARGUMENT);
+static_assert(infinity::core::categoryOf(infinity::core::CoreError::UNKNOWN_DEPENDENCY) ==
+              infinity::core::ErrorCategory::INVALID_ARGUMENT);
+static_assert(infinity::core::categoryOf(infinity::core::CoreError::DEPENDENCY_CYCLE) ==
+              infinity::core::ErrorCategory::INVALID_STATE);
+static_assert(infinity::core::categoryOf(infinity::core::CoreError::INVALID_ARGUMENT) ==
+              infinity::core::ErrorCategory::INVALID_ARGUMENT);
 
 namespace {
 
@@ -41,7 +49,7 @@ struct CodeCategory {
     std::string_view name;
 };
 
-constexpr std::array<CodeCategory, 17> ALL_CODES{
+constexpr std::array<CodeCategory, 21> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::ALLOCATION_FAILED,
                  .category = infinity::core::ErrorCategory::RESOURCE,
                  .name = "allocation_failed"},
@@ -93,6 +101,18 @@ constexpr std::array<CodeCategory, 17> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::IO_WRONG_TYPE,
                  .category = infinity::core::ErrorCategory::IO,
                  .name = "io_wrong_type"},
+    CodeCategory{.code = infinity::core::CoreError::DUPLICATE_SYSTEM,
+                 .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
+                 .name = "duplicate_system"},
+    CodeCategory{.code = infinity::core::CoreError::UNKNOWN_DEPENDENCY,
+                 .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
+                 .name = "unknown_dependency"},
+    CodeCategory{.code = infinity::core::CoreError::DEPENDENCY_CYCLE,
+                 .category = infinity::core::ErrorCategory::INVALID_STATE,
+                 .name = "dependency_cycle"},
+    CodeCategory{.code = infinity::core::CoreError::INVALID_ARGUMENT,
+                 .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
+                 .name = "invalid_argument"},
 };
 
 // Category names of ErrorCategory (stable, for logging).
