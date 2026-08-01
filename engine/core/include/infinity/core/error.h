@@ -62,6 +62,8 @@ enum class CoreError : uint8_t {
     IO_NOT_FOUND,             ///< io - the file or path does not exist
     IO_PERMISSION_DENIED,     ///< io - the file or path is not accessible
     IO_INVALID_DATA,          ///< io - the data does not match the expected format
+    INVALID_UTF8, ///< invalid_argument - a byte sequence is not well-formed UTF-8 (F2.8a, Unicode
+                  ///< Table 3-7)
 };
 
 // Maps a CoreError to its category. Constexpr so mappings are verifiable at
@@ -80,6 +82,7 @@ enum class CoreError : uint8_t {
     case CoreError::INVALID_ALIGNMENT:
     case CoreError::INVALID_SIZE:
     case CoreError::OUT_OF_BOUNDS:
+    case CoreError::INVALID_UTF8:
         return ErrorCategory::INVALID_ARGUMENT;
     case CoreError::UNSUPPORTED:
         return ErrorCategory::NOT_SUPPORTED;
@@ -125,6 +128,8 @@ enum class CoreError : uint8_t {
         return "io_permission_denied";
     case CoreError::IO_INVALID_DATA:
         return "io_invalid_data";
+    case CoreError::INVALID_UTF8:
+        return "invalid_utf8";
     }
     return "unknown";
 }

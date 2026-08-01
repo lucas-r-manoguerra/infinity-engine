@@ -10,6 +10,8 @@ infinity_add_test(infinity_core_tests
     thread_pool_concurrency_test.cpp
     thread_pool_test.cpp
     time_test.cpp
+    utf8_test.cpp
+    utf8_view_test.cpp
     version_test.cpp
 )
 

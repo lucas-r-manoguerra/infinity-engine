@@ -41,7 +41,7 @@ struct CodeCategory {
     std::string_view name;
 };
 
-constexpr std::array<CodeCategory, 14> ALL_CODES{
+constexpr std::array<CodeCategory, 15> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::ALLOCATION_FAILED,
                  .category = infinity::core::ErrorCategory::RESOURCE,
                  .name = "allocation_failed"},
@@ -84,6 +84,9 @@ constexpr std::array<CodeCategory, 14> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::IO_INVALID_DATA,
                  .category = infinity::core::ErrorCategory::IO,
                  .name = "io_invalid_data"},
+    CodeCategory{.code = infinity::core::CoreError::INVALID_UTF8,
+                 .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
+                 .name = "invalid_utf8"},
 };
 
 // Category names of ErrorCategory (stable, for logging).
