@@ -5,6 +5,7 @@ infinity_add_test(infinity_core_tests
     diagnostics_test.cpp
     error_test.cpp
     fault_injector_test.cpp
+    fs_test.cpp
     loop_test.cpp
     pool_allocator_test.cpp
     thread_pool_concurrency_test.cpp

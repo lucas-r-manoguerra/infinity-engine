@@ -64,6 +64,9 @@ enum class CoreError : uint8_t {
     IO_INVALID_DATA,          ///< io - the data does not match the expected format
     INVALID_UTF8, ///< invalid_argument - a byte sequence is not well-formed UTF-8 (F2.8a, Unicode
                   ///< Table 3-7)
+    IO_ALREADY_EXISTS, ///< io - the file or path already exists (F2.8, ADR-023)
+    IO_WRONG_TYPE,     ///< io - the path exists but has the wrong kind (file vs directory) (F2.8,
+                       ///< ADR-023)
 };
 
 // Maps a CoreError to its category. Constexpr so mappings are verifiable at
@@ -90,6 +93,8 @@ enum class CoreError : uint8_t {
     case CoreError::IO_NOT_FOUND:
     case CoreError::IO_PERMISSION_DENIED:
     case CoreError::IO_INVALID_DATA:
+    case CoreError::IO_ALREADY_EXISTS:
+    case CoreError::IO_WRONG_TYPE:
         return ErrorCategory::IO;
     }
     return ErrorCategory::INVALID_STATE;
@@ -128,6 +133,10 @@ enum class CoreError : uint8_t {
         return "io_permission_denied";
     case CoreError::IO_INVALID_DATA:
         return "io_invalid_data";
+    case CoreError::IO_ALREADY_EXISTS:
+        return "io_already_exists";
+    case CoreError::IO_WRONG_TYPE:
+        return "io_wrong_type";
     case CoreError::INVALID_UTF8:
         return "invalid_utf8";
     }

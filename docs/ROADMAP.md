@@ -323,7 +323,7 @@ de todas las demás (ADR-005).
 - [x] F2.5 `Time` (clock, delta, FPS) + `Loop` fixed timestep 60Hz (ADR-006)
 - [x] F2.6 `Diagnostics` (contadores atómicos, sin allocaciones)
 - [x] F2.7 `ThreadPool` (workers idle bloqueados en futex, spawn/wait)
-- [ ] F2.8 Abstracción FS/threads/time + UTF-8 (ADR-023) en core — UTF-8 (F2.8a): `Utf8View` + `CoreError::INVALID_UTF8` listos
+- [ ] F2.8 Abstracción FS/threads/time + UTF-8 (ADR-023) en core — UTF-8 (F2.8a): `Utf8View` + `CoreError::INVALID_UTF8` listos; FS (F2.8b): interfaz `FileSystem` + backend in-memory con fault injection listos (backends OS en F3.5)
 - [ ] F2.9 Property-based tests + fuzzing base (ADR-017): invariantes de math y round-trips
 - [ ] F2.10 Benchmarks de memoria (arena alloc objetivo <60ns)
 - [ ] F2.11 `SystemRegistry` declarativo (ADR-014): init/shutdown resuelto por dependencias
