@@ -328,7 +328,7 @@ de todas las demás (ADR-005).
 - [x] F2.10 Benchmarks de memoria (arena alloc objetivo <60ns): medido 5.3ns/op en release (CPU Ryzen 5 7600, clang 20), 11x bajo el target
 - [x] F2.11 `SystemRegistry` declarativo (ADR-014): init/shutdown por dependencias con detección de ciclos
 - [x] F2.12 Memory budgets por subsistema (ADR-034): `BudgetAllocator` decorator + `MemoryBudgets` tracker; alerta por callback (log/dev console futuros, ADR-046/035)
-- [ ] F2.13 Profiler jerárquico base (ADR-036): spans sin allocaciones, capture de frame
+- [x] F2.13 Profiler jerárquico base (ADR-036): `SpanId` catalog + `Profiler` spans jerárquicos zero-alloc + frame capture de buffer fijo; time source inyectable para tests deterministas
 
 **Criterios**: tests verdes incluyendo stress de allocators; 0 leaks bajo ASan.
 
