@@ -88,15 +88,15 @@ private:
     // Chains every slot into the free list in construction order.
     void initFreeList() noexcept;
 
-    Allocator& m_backing;      // must outlive the pool
-    void* m_block{nullptr};    // contiguous block from m_backing
-    void* m_freeHead{nullptr}; // next slot to hand out, or nullptr
-    size_t m_elementSize{0};   // the only size allocate() may serve
-    size_t m_alignment{1};     // the only alignment the pool serves
-    size_t m_capacity{0};      // slot count; 0 when the block was not acquired
-    size_t m_usedCount{0};     // slots currently handed out
-    size_t m_slotSize{0};      // stride between slots (>= alignment)
-    size_t m_blockSize{0};     // bytes requested from the backing
+    Allocator& m_backing;                     // must outlive the pool
+    void* m_block{nullptr};                   // contiguous block from m_backing
+    void* m_freeHead{nullptr};                // next slot to hand out, or nullptr
+    [[maybe_unused]] size_t m_elementSize{0}; // the only size allocate() may serve
+    size_t m_alignment{1};                    // the only alignment the pool serves
+    size_t m_capacity{0};                     // slot count; 0 when the block was not acquired
+    size_t m_usedCount{0};                    // slots currently handed out
+    size_t m_slotSize{0};                     // stride between slots (>= alignment)
+    size_t m_blockSize{0};                    // bytes requested from the backing
 };
 
 } // namespace infinity::core

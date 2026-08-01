@@ -11,7 +11,7 @@ namespace {
 // caller bug - a programming invariant, asserted in debug like every core
 // invariant. Release keeps the raw array access; counters are hot-path and
 // bounds-checking is not (rule 08).
-[[nodiscard]] bool isValidCounter(CounterId id) noexcept {
+[[maybe_unused]] [[nodiscard]] bool isValidCounter(CounterId id) noexcept {
     return std::to_underlying(id) < COUNTER_COUNT;
 }
 
