@@ -73,6 +73,8 @@ enum class CoreError : uint8_t {
     DEPENDENCY_CYCLE,   ///< invalid_state - system dependencies form a cycle (F2.11, ADR-014)
     INVALID_ARGUMENT,   ///< invalid_argument - a caller-supplied argument is not usable (F2.11,
                         ///< ADR-014)
+    DUPLICATE_BUDGET,   ///< invalid_argument - a budget id is already registered (F2.12,
+                        ///< ADR-034)
 };
 
 // Maps a CoreError to its category. Constexpr so mappings are verifiable at
@@ -96,6 +98,7 @@ enum class CoreError : uint8_t {
     case CoreError::DUPLICATE_SYSTEM:
     case CoreError::UNKNOWN_DEPENDENCY:
     case CoreError::INVALID_ARGUMENT:
+    case CoreError::DUPLICATE_BUDGET:
         return ErrorCategory::INVALID_ARGUMENT;
     case CoreError::UNSUPPORTED:
         return ErrorCategory::NOT_SUPPORTED;
@@ -157,6 +160,8 @@ enum class CoreError : uint8_t {
         return "dependency_cycle";
     case CoreError::INVALID_ARGUMENT:
         return "invalid_argument";
+    case CoreError::DUPLICATE_BUDGET:
+        return "duplicate_budget";
     }
     return "unknown";
 }

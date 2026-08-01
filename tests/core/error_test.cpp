@@ -37,6 +37,8 @@ static_assert(infinity::core::categoryOf(infinity::core::CoreError::DEPENDENCY_C
               infinity::core::ErrorCategory::INVALID_STATE);
 static_assert(infinity::core::categoryOf(infinity::core::CoreError::INVALID_ARGUMENT) ==
               infinity::core::ErrorCategory::INVALID_ARGUMENT);
+static_assert(infinity::core::categoryOf(infinity::core::CoreError::DUPLICATE_BUDGET) ==
+              infinity::core::ErrorCategory::INVALID_ARGUMENT);
 
 namespace {
 
@@ -49,7 +51,7 @@ struct CodeCategory {
     std::string_view name;
 };
 
-constexpr std::array<CodeCategory, 21> ALL_CODES{
+constexpr std::array<CodeCategory, 22> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::ALLOCATION_FAILED,
                  .category = infinity::core::ErrorCategory::RESOURCE,
                  .name = "allocation_failed"},
@@ -113,6 +115,9 @@ constexpr std::array<CodeCategory, 21> ALL_CODES{
     CodeCategory{.code = infinity::core::CoreError::INVALID_ARGUMENT,
                  .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
                  .name = "invalid_argument"},
+    CodeCategory{.code = infinity::core::CoreError::DUPLICATE_BUDGET,
+                 .category = infinity::core::ErrorCategory::INVALID_ARGUMENT,
+                 .name = "duplicate_budget"},
 };
 
 // Category names of ErrorCategory (stable, for logging).
