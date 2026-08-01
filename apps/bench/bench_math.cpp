@@ -6,32 +6,26 @@
 // quat.slerp ~75 ns.
 //
 // Design notes:
-// - Self-contained: std::chrono only, no third_party dependency (ADR-061/068);
-//   doctest is for correctness tests (rule 06), not for benchmarks.
+// - The shared benchmark harness (bench_harness.h, rule 08) provides the
+//   volatile sink, run/report helpers and the machine-parseable output.
 // - The math functions live in the infinity_math static library, a separate
 //   translation unit, and are not inlined without LTO, so every call is the
 //   real cost a library consumer pays. The build never applies fast-math
 //   (ADR-056), so the numbers reflect the shipped math.
-// - A volatile sink keeps every computed result observable: the optimizer can
-//   neither eliminate the calls nor hoist loop-invariant ones. Portable, no
-//   inline asm required.
 // - Inputs rotate through precomputed rotations/transforms/vectors so the loop
 //   never benchmarks a single constant (inputs are realistic object TRS
 //   matrices and rotations, not identities).
-// - Output is machine-parseable: `bench:<name>:<ns_per_op>` plus one human
-//   summary line per metric.
 //
 // Benchmarks measure, they never assert (rule 08). Not a CTest target.
 
 #include <array>
-#include <chrono>
 #include <cstddef>
-#include <iomanip>
-#include <iostream>
 
-#include "infinity/math/mat4.h"
-#include "infinity/math/quat.h"
-#include "infinity/math/vec3.h"
+#include "bench_harness.h"
+
+// Memory suite (bench_arena.cpp, F2.10); dispatched here so both suites run
+// under the single infinity-bench executable.
+int runArenaBenchmarks();
 
 namespace {
 
@@ -39,47 +33,9 @@ using infinity::math::Mat4;
 using infinity::math::Quat;
 using infinity::math::Vec3;
 
-// Volatile sink: every measured result accumulates here so the optimizer must
-// keep the computation and cannot prove it dead. Bench-only global, never used
-// outside this translation unit.
-volatile float g_sink = 0.0f;
-
-void consume(float value) { g_sink += value; }
-
-void consume(const Vec3& value) { g_sink += value.x; }
-
-void consume(const Quat& value) { g_sink += value.x; }
-
-void consume(const Mat4& value) { g_sink += value.m[0]; }
-
-struct BenchmarkResult {
-    const char* name;
-    double nsPerOp;
-};
-
-// Runs fn(i) for every i in [0, measuredIters) and returns ns per operation.
-// Warmup iterations are discarded; the result is kept observable via consume().
-template <typename Fn>
-BenchmarkResult runBenchmark(const char* name, size_t warmupIters, size_t measuredIters, Fn&& fn) {
-    for (size_t i = 0; i < warmupIters; ++i) {
-        consume(fn(i));
-    }
-    const auto start = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < measuredIters; ++i) {
-        consume(fn(i));
-    }
-    const auto end = std::chrono::steady_clock::now();
-    const double nsPerOp = std::chrono::duration<double, std::nano>(end - start).count() /
-                           static_cast<double>(measuredIters);
-    return {.name = name, .nsPerOp = nsPerOp};
-}
-
-// Prints the machine-parseable line and the human summary line.
-void report(const BenchmarkResult& result, const char* humanName) {
-    std::cout << "bench:" << result.name << ":" << std::fixed << std::setprecision(3)
-              << result.nsPerOp << '\n';
-    std::cout << std::setprecision(2) << humanName << ": " << result.nsPerOp << " ns/op\n";
-}
+// Bench harness helpers and sink live in bench_harness.h (namespace bench);
+// imported here so the benchmark calls below read naturally.
+using namespace bench;
 
 } // namespace
 
@@ -146,6 +102,8 @@ int main() {
     report(runBenchmark("vec3_normalize", 100000, 1000000,
                         [&](size_t i) { return vectors[i % 4].normalized(); }),
            "vec3.normalize");
+
+    runArenaBenchmarks();
 
     return 0;
 }
