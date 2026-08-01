@@ -72,6 +72,10 @@ enum class CounterId : uint16_t {
                            ///< consumer. BudgetAllocator does NOT bump this itself: the decorator
                            ///< stays decoupled and the wiring lives where the alert callback is
                            ///< consumed (F2.12, ADR-034).
+    FRAME_BUDGET_EXCEEDED, ///< gauge - frame budget crossings counted by the future runtime/logger
+                           ///< consumer. TimeBudgets does NOT bump this itself: the tracker stays
+                           ///< decoupled and the wiring lives where the alert callback is
+                           ///< consumed (F2.14, ADR-055).
     COUNT,                 ///< sentinel - the catalog size, not a counter
 };
 
