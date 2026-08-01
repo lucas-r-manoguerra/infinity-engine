@@ -8,11 +8,13 @@ infinity_add_test(infinity_core_tests
     fs_test.cpp
     loop_test.cpp
     pool_allocator_test.cpp
+    property_test_test.cpp
     thread_pool_concurrency_test.cpp
     thread_pool_test.cpp
     time_test.cpp
     utf8_test.cpp
     utf8_view_test.cpp
+    utf8_property_test.cpp
     version_test.cpp
 )
 
