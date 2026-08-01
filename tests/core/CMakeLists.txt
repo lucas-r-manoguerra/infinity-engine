@@ -9,6 +9,7 @@ infinity_add_test(infinity_core_tests
     loop_test.cpp
     pool_allocator_test.cpp
     property_test_test.cpp
+    system_registry_order_test.cpp
     thread_pool_concurrency_test.cpp
     thread_pool_test.cpp
     time_test.cpp
