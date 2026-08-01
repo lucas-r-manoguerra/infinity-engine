@@ -63,12 +63,16 @@ enum class CounterId : uint16_t {
     ECS_ENTITIES_DESTROYED, ///< entities destroyed through the ECS
     RENDER_DRAWS,           ///< draw calls issued by the renderer
     RENDER_PIXELS,          ///< gauge - pixels written in the current frame; set, never incremented
-    ALLOC_BYTES,      ///< bytes allocated through core allocators (arena/pool backing traffic)
-    ALLOC_FAILURES,   ///< allocation failures reported as recoverable errors (rule 04)
-    IO_BYTES_READ,    ///< bytes read from external data
-    IO_BYTES_WRITTEN, ///< bytes written to external data
-    IO_ERRORS,        ///< IO operations that failed (rule 04)
-    COUNT,            ///< sentinel - the catalog size, not a counter
+    ALLOC_BYTES,           ///< bytes allocated through core allocators (arena/pool backing traffic)
+    ALLOC_FAILURES,        ///< allocation failures reported as recoverable errors (rule 04)
+    IO_BYTES_READ,         ///< bytes read from external data
+    IO_BYTES_WRITTEN,      ///< bytes written to external data
+    IO_ERRORS,             ///< IO operations that failed (rule 04)
+    ALLOC_BUDGET_EXCEEDED, ///< gauge - budget crossings counted by the future runtime/logger
+                           ///< consumer. BudgetAllocator does NOT bump this itself: the decorator
+                           ///< stays decoupled and the wiring lives where the alert callback is
+                           ///< consumed (F2.12, ADR-034).
+    COUNT,                 ///< sentinel - the catalog size, not a counter
 };
 
 // Number of live counters (the catalog size), derived from the COUNT sentinel
