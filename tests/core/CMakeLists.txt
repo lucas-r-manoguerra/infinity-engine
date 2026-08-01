@@ -10,6 +10,7 @@ infinity_add_test(infinity_core_tests
     fs_test.cpp
     loop_test.cpp
     pool_allocator_test.cpp
+    profiler_test.cpp
     property_test_test.cpp
     system_registry_error_test.cpp
     system_registry_order_test.cpp
