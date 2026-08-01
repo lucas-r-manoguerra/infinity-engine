@@ -329,6 +329,7 @@ de todas las demás (ADR-005).
 - [x] F2.11 `SystemRegistry` declarativo (ADR-014): init/shutdown por dependencias con detección de ciclos
 - [x] F2.12 Memory budgets por subsistema (ADR-034): `BudgetAllocator` decorator + `MemoryBudgets` tracker; alerta por callback (log/dev console futuros, ADR-046/035)
 - [x] F2.13 Profiler jerárquico base (ADR-036): `SpanId` catalog + `Profiler` spans jerárquicos zero-alloc + frame capture de buffer fijo; time source inyectable para tests deterministas
+- [x] F2.14 Time budgets por sistema (ADR-055): TimeBudgets tracker — budget máx por SpanId, verificación contra la frame capture del Profiler, alerta por callback + contador en Diagnostics
 
 **Criterios**: tests verdes incluyendo stress de allocators; 0 leaks bajo ASan.
 
