@@ -345,12 +345,12 @@ de todas las demás (ADR-005).
 primero para no acoplar renderer a X11.
 
 **Tareas**:
-- [ ] F3.1 Interfaz `Window` + backend X11 (resize, close)
-- [ ] F3.2 Interfaz `Input` + action mapping (bindings configurables)
+- [ ] F3.1 Interfaz `Window` + backend X11 (resize, close) — headless listo (ADR-030); backend X11 pendiente
+- [x] F3.2 Interfaz `Input` + action mapping (bindings configurables)
 - [ ] F3.3 Input completo (ADR-033): gamepad/joystick, rebinding runtime, cola determinista
-- [ ] F3.4 Contexto de plataforma (init/cleanup seguro, RAII)
+- [x] F3.4 Contexto de plataforma (init/cleanup seguro, RAII)
 - [ ] F3.5 Backends de FS/threads/time para Linux (sobre core — ADR-023)
-- [ ] F3.6 Tests: apertura/cierre de ventana, ciclo de input
+- [ ] F3.6 Tests: apertura/cierre de ventana, ciclo de input — headless cubierto; verificación X11 cuando exista el backend
 
 **Criterios**: ventana X11 abre y cierra; input llega al runtime sin acoplar X11.
 
