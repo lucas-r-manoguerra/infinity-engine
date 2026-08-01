@@ -21,6 +21,7 @@
 | [09-opencode-harness](09-opencode-harness.md) | Flujo de verificación del agente | Siempre |
 | [10-github](10-github.md) | Commits, PRs, CI | Antes de commitear |
 | [11-determinism](11-determinism.md) | Determinismo, RNG, no hidden state | Siempre |
+| [12-main-protection](12-main-protection.md) | Protección de main (HARD RULE) | Antes de tocar git |
 
 ## Reglas transversales (aplican a TODO)
 

@@ -12,7 +12,8 @@
     "docs/rules/08-performance.md",
     "docs/rules/09-opencode-harness.md",
     "docs/rules/10-github.md",
-    "docs/rules/11-determinism.md"
+    "docs/rules/11-determinism.md",
+    "docs/rules/12-main-protection.md"
   ],
   "skills": {
     "auto_load": true,
