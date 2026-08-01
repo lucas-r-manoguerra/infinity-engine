@@ -29,11 +29,12 @@
 //                   threads probe concurrently.
 //
 // TEST-ONLY FACILITY. This header lives under include/infinity/core/testing/
-// and is included by test translation units only; no production header
-// references it. instance() is a deliberate exception to rule 11's "no mutable
-// global state": the type exists solely in test binaries, and threading an
-// injector through production signatures (allocator ctors, IO opens, init)
-// would pollute APIs that must stay stable. Prefer constructor injection
+// and is intended for test translation units; no production header references
+// it. Fault-aware production code whose test doubles probe the injector (e.g.
+// the in-memory filesystem backend, F2.8) may include it from its .cpp only.
+// instance() is a deliberate exception to rule 11's "no mutable global state": the type exists
+// solely in test binaries, and threading an injector through production signatures (allocator
+// ctors, IO opens, init) would pollute APIs that must stay stable. Prefer constructor injection
 // (see the FaultInjectingAllocator double in fault_injector_test.cpp) and fall
 // back to instance() only where a signature cannot carry the injector.
 #pragma once
@@ -105,19 +106,19 @@ private:
 
 // --- inline implementation (header-only test support) --------------------
 
-void FaultInjector::enqueue(const char* key, uint64_t callIndex, CoreError error) {
+inline void FaultInjector::enqueue(const char* key, uint64_t callIndex, CoreError error) {
     const std::lock_guard<std::mutex> lock(m_mutex);
     schedule(stateFor(key), callIndex, error);
 }
 
-void FaultInjector::failNext(const char* key, CoreError error) {
+inline void FaultInjector::failNext(const char* key, CoreError error) {
     const std::lock_guard<std::mutex> lock(m_mutex);
     KeyState& state = stateFor(key);
     schedule(state, state.nextIndex + state.pendingFailNext, error);
     ++state.pendingFailNext;
 }
 
-ExpectedVoid FaultInjector::probe(const char* key) {
+inline ExpectedVoid FaultInjector::probe(const char* key) {
     const std::lock_guard<std::mutex> lock(m_mutex);
     KeyState& state = stateFor(key);
     const uint64_t index = state.nextIndex;
@@ -134,26 +135,26 @@ ExpectedVoid FaultInjector::probe(const char* key) {
     return std::unexpected(error);
 }
 
-void FaultInjector::reset() {
+inline void FaultInjector::reset() {
     const std::lock_guard<std::mutex> lock(m_mutex);
     m_states.clear();
 }
 
-void FaultInjector::clear(const char* key) {
+inline void FaultInjector::clear(const char* key) {
     const std::lock_guard<std::mutex> lock(m_mutex);
     m_states.erase(std::string(key));
 }
 
-FaultInjector& FaultInjector::instance() {
+inline FaultInjector& FaultInjector::instance() {
     static FaultInjector injector;
     return injector;
 }
 
-FaultInjector::KeyState& FaultInjector::stateFor(const char* key) {
+inline FaultInjector::KeyState& FaultInjector::stateFor(const char* key) {
     return m_states.try_emplace(key).first->second;
 }
 
-void FaultInjector::schedule(KeyState& state, uint64_t callIndex, CoreError error) {
+inline void FaultInjector::schedule(KeyState& state, uint64_t callIndex, CoreError error) {
     state.failures.emplace(callIndex, error);
 }
 
