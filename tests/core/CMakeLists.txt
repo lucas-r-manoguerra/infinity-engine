@@ -14,6 +14,7 @@ infinity_add_test(infinity_core_tests
     time_test.cpp
     utf8_test.cpp
     utf8_view_test.cpp
+    utf8_property_test.cpp
     version_test.cpp
 )
 
