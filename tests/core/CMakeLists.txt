@@ -3,6 +3,7 @@ infinity_add_test(infinity_core_tests
     allocator_test.cpp
     arena_allocator_test.cpp
     budget_allocator_test.cpp
+    memory_budgets_test.cpp
     diagnostics_test.cpp
     error_test.cpp
     fault_injector_test.cpp
