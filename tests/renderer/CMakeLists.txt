@@ -4,6 +4,7 @@ infinity_add_test(infinity_renderer_tests
     color_test.cpp
     render_target_test.cpp
     software_test.cpp
+    camera_test.cpp
 )
 
 # The tests touch core types directly (Allocator, ErrorCategory), so core is
