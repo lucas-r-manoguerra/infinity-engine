@@ -1,7 +1,8 @@
 infinity_add_test(infinity_platform_tests
     main.cpp
     error_test.cpp
-    input_test.cpp
+    input_action_map_test.cpp
+    input_queue_test.cpp
     platform_test.cpp
     window_test.cpp
 )
