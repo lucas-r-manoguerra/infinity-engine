@@ -69,9 +69,19 @@ private:
 // one to build a surface; the headless backend never does. Cases that require
 // a real window skip cleanly when none could be created (window_test.cpp).
 [[nodiscard]] bool hasDisplay() noexcept {
+#if defined(_MSC_VER)
+    // MSVC deprecates getenv (-Wdeprecated-declarations under /W4 /WX), so use
+    // the CRT's secure variant. Tests run single-threaded; DISPLAY is set once
+    // by the harness before the binary starts.
+    char* value = nullptr;
+    const errno_t status = _dupenv_s(&value, nullptr, "DISPLAY");
+    free(value);
+    return status == 0 && value != nullptr;
+#else
     // getenv is not thread-safe; tests run single-threaded under doctest and
     // DISPLAY is set once by the harness before the binary starts.
     return std::getenv("DISPLAY") != nullptr; // NOLINT(concurrency-mt-unsafe)
+#endif
 }
 
 } // namespace
