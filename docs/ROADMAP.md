@@ -366,16 +366,27 @@ primero para no acoplar renderer a X11.
 (ADR-004) mientras Vulkan madura.
 
 **Tareas**:
-- [ ] F4.1 RHI — interfaz `Renderer` (ADR-009): upload, draw list, present; backend-agnostic
-- [ ] F4.2 `SoftwareBackend`: framebuffer BGRA32, clear, drawTriangle (detrás de la RHI)
-- [ ] F4.3 Backface culling (correcto desde el día 1)
-- [ ] F4.4 Tile renderer multi-thread (checksums por tiles)
+- [x] F4.1 RHI — interfaz `Renderer` (ADR-009): draw list, clear, draw, present; backend-agnostic
+      (F4.1, `engine/renderer/include/infinity/renderer/`, factory `createRenderer`)
+- [x] F4.2 `SoftwareBackend`: framebuffer BGRA32, clear, drawTriangle (detrás de la RHI)
+- [x] F4.3 Backface culling (correcto desde el día 1) — winding screen-space, configurable
+- [x] F4.4 Tile renderer multi-thread (checksums por tiles) — `ThreadPool`, path MT == serial
 - [ ] F4.5 `VulkanBackend` esqueleto + loader (mismo contrato RHI)
-- [ ] F4.6 `NullBackend` headless (ADR-030): engine completo sin ventana (CI, IA sandbox)
-- [ ] F4.7 Color management sRGB (ADR-037): linear → sRGB en presentación, desde el día 1
-- [ ] F4.8 Render targets (ADR-041): dibujar a texturas desde el día 1 (offscreen)
-- [ ] F4.9 Tests de renderer (checksums de framebuffer) + benchmark de triangle fill
+- [ ] F4.6 `NullBackend` headless (ADR-030): el backend software ya es la ruta CI-hermética sin
+      ventana; falta el NullBackend de medición de overhead (documentado en `renderer.h`)
+- [x] F4.7 Color management sRGB (ADR-037): linear → sRGB en presentación, desde el día 1
+- [ ] F4.8 Render targets (ADR-041): el `RenderTarget` + `present(target)` ya dibujan offscreen;
+      falta el uso desde runtime/editor (cámaras → targets)
+- [x] F4.9 Tests de renderer (checksums de framebuffer) + benchmark de triangle fill
+      (`apps/bench/bench_triangle.cpp`; ver §7)
 - [ ] F4.10 Cámaras first-class (ADR-051): múltiples cámaras, cada una con render target y capa propia
+
+**Progreso F4 (branch feat/f4-renderer)**: interfaz RHI + `RenderTarget` BGRA32 move-only con
+`checksum()` FNV-1a-64 determinista; backend software por tiles con half-space scan, culling
+screen-space y color interpolado; sRGB exactamente una vez por pixel en present (ADR-037);
+path multi-thread (tiles disjuntos) produce checksum idéntico al serial (rule 11); 0 alloc en
+el hot path (crecimiento → `ALLOCATION_FAILED`); 32 test cases / 268 assertions verdes con ASan
+sin leaks.
 
 **Criterios**: checksums deterministas; renderer software correcto y testeado;
 **triángulo visible** (ADR-060: vertical slice de F4).
@@ -534,7 +545,13 @@ mat4.mul         ~34ns      vec3 ops      ~1ns
 mat4.inverse     ~18ns      quat.slerp    ~75ns
 entity.create    ~8ns       query 10k     ~170μs
 query empty      <5μs (target nuevo)      arena alloc  <60ns (target nuevo)
+renderer.triangle ~11.1μs (medido F4.9)   renderer.pixel ~20.4ns (medido F4.9)
+renderer.full_frame ~0.36ms (medido F4.9, 32 triángulos, 128×128, threaded=false)
 ```
+
+> F4.9 medido en preset release (Ryzen 5 7600, clang 20): triángulo 128×128 con culling
+> activo y color interpolado; pixel = present sRGB ya incluido. Baselines a refinar cuando
+> exista la pipeline de cámara (F4.10).
 
 ### Volumen estimado (C++)
 
