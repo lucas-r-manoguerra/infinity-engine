@@ -1,4 +1,5 @@
 add_library(infinity_renderer STATIC
+    src/camera.cpp
     src/render_target.cpp
     src/renderer.cpp
     src/software/software_backend.cpp
@@ -20,6 +21,10 @@ target_compile_definitions(infinity_renderer PRIVATE INFINITY_RENDERER_SOFTWARE=
 # The public API returns core types (Allocator, Expected, ErrorCategory), so
 # core is part of the interface: PUBLIC keeps include dirs and symbols on
 # every consumer link.
-target_link_libraries(infinity_renderer PUBLIC infinity_core)
+#
+# F4.10: cameras are first-class (ADR-051) and their public header returns
+# infinity_math types (Mat4, Quat, Vec3) and builds matrices from them, so
+# math is part of the renderer interface too.
+target_link_libraries(infinity_renderer PUBLIC infinity_core infinity_math)
 
 add_library(infinity::renderer ALIAS infinity_renderer)
