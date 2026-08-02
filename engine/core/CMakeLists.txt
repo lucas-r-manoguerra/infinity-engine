@@ -4,6 +4,8 @@ add_library(infinity_core STATIC
     src/memory_budgets.cpp
     src/diagnostics.cpp
     src/fs_in_memory.cpp
+    src/fs_os.cpp
+    src/fs_os_detail.cpp
     src/loop.cpp
     src/pool_allocator.cpp
     src/profiler.cpp
