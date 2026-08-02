@@ -6,6 +6,12 @@
 // host. Data paths never allocate; errors map via fs_os_detail::mapErrno.
 // rename never overwrites: renameat2(RENAME_NOREPLACE) on Linux, else a
 // check-then-rename fallback (accepted TOCTOU race).
+//
+// Portability: the POSIX file API (dirent, stat, unistd) exists on Linux and
+// macOS only, so the real implementation is compiled there and a NOT_SUPPORTED
+// stub elsewhere (Windows today): the PosixFileSystem type and every operation
+// stay available on every host, reporting an explicit error instead of failing
+// to link (rule 04). The consumer chooses the backend, never the build.
 #include "infinity/core/fs_os.h"
 #include "infinity/core/testing/fault_injector.h"
 #include "infinity/core/utf8.h"
@@ -14,7 +20,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -22,11 +27,14 @@
 #include <utility>
 #include <vector>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <cerrno>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #if defined(__linux__)
 #include <linux/fs.h>
@@ -37,6 +45,8 @@ namespace infinity::core {
 
 PosixFileSystem::PosixFileSystem(infinity::core::testing::FaultInjector& injector) noexcept
     : m_injector(&injector) {}
+
+#if defined(__unix__) || defined(__APPLE__)
 
 Expected<bool> PosixFileSystem::exists(std::string_view path) noexcept {
     const ExpectedVoid probe = m_injector->probe("fs.exists");
@@ -317,5 +327,65 @@ ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCall
     }
     return {};
 }
+
+#else
+
+// Non-POSIX hosts (Windows today): the POSIX file API does not exist, so the
+// backend is a stub. Every operation reports NOT_SUPPORTED before touching
+// anything (no probe, no validation, no host call); parameters are named and
+// ignored to satisfy -Werror and clang-tidy, and the helpers in fs_os_detail
+// are never reached. A native backend for the host replaces this stub without
+// changing the public API (rule 04, not_supported category).
+Expected<bool> PosixFileSystem::exists(std::string_view path) noexcept {
+    (void)path;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+Expected<uint64_t> PosixFileSystem::fileSize(std::string_view path) noexcept {
+    (void)path;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+Expected<std::size_t> PosixFileSystem::readFile(std::string_view path, void* buffer,
+                                                std::size_t capacity) noexcept {
+    (void)path;
+    (void)buffer;
+    (void)capacity;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+Expected<std::size_t> PosixFileSystem::writeFile(std::string_view path, const void* data,
+                                                 std::size_t size) noexcept {
+    (void)path;
+    (void)data;
+    (void)size;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+ExpectedVoid PosixFileSystem::remove(std::string_view path) noexcept {
+    (void)path;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+ExpectedVoid PosixFileSystem::rename(std::string_view from, std::string_view to) noexcept {
+    (void)from;
+    (void)to;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+ExpectedVoid PosixFileSystem::makeDirectory(std::string_view path) noexcept {
+    (void)path;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCallback callback,
+                                            void* userData) noexcept {
+    (void)path;
+    (void)callback;
+    (void)userData;
+    return std::unexpected(CoreError::NOT_SUPPORTED);
+}
+
+#endif // defined(__unix__) || defined(__APPLE__)
 
 } // namespace infinity::core

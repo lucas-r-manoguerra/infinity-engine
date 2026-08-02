@@ -24,9 +24,13 @@
 // implementation.
 //
 // Portability: the public surface never includes POSIX headers (rule 02); all
-// system includes live in fs_os.cpp. The backend compiles on Linux and macOS;
-// rename without overwrite uses renameat2(RENAME_NOREPLACE) on Linux with a
-// documented check-then-rename fallback elsewhere (see fs_os.cpp).
+// system includes live in fs_os.cpp. The real backend compiles on Linux and
+// macOS; rename without overwrite uses renameat2(RENAME_NOREPLACE) on Linux
+// with a documented check-then-rename fallback elsewhere (see fs_os.cpp). On
+// non-POSIX hosts (Windows today) the implementation is a stub: every operation
+// reports NOT_SUPPORTED, so the type and the API stay available on every host
+// and the consumer chooses the backend, never the build. A native backend for
+// that host replaces the stub without changing this surface.
 #pragma once
 
 #include "infinity/core/fs.h"
@@ -42,7 +46,8 @@ class FaultInjector;
 namespace infinity::core {
 
 // POSIX FileSystem backend (F3.5): real file and directory operations over the
-// host OS, fault-injectable. See the header brief for the contract.
+// host OS, fault-injectable. See the header brief for the contract. On
+// non-POSIX hosts every operation reports NOT_SUPPORTED (stub backend).
 class PosixFileSystem final : public FileSystem {
 public:
     // The injector is consulted by every operation before it acts (ADR-016).
