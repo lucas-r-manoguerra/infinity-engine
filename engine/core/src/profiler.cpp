@@ -72,9 +72,4 @@ std::span<const FrameSpan> Profiler::frameSpans() const noexcept {
 
 bool Profiler::wasOverflowed() const noexcept { return m_overflowed; }
 
-Profiler& Profiler::instance() noexcept {
-    static Profiler profiler;
-    return profiler;
-}
-
 } // namespace infinity::core

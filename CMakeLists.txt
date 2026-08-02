@@ -23,7 +23,7 @@ infinity_configure_sanitizers()
 # enforced by target_link_libraries at link time (rule 01).
 add_subdirectory(engine)
 
-# apps/ is intentionally empty until F6 (sandbox, infinity-bench).
+# apps/bench runs since F1 (infinity-bench); apps/sandbox arrives in F6.
 add_subdirectory(apps)
 
 # CTest (BUILD_TESTING option) + one test executable per module (rule 06).

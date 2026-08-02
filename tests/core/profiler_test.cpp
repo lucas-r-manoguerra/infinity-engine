@@ -7,7 +7,7 @@
 // instead of wrapping (rule 07); a full capture drops later spans without
 // corrupting already-recorded ones; frameSpans exposes the capture in close
 // order; spanName names every catalog id below COUNT; and a local instance
-// never touches Profiler::instance() (rule 11).
+// keeps its capture fully isolated (rule 11: no global state).
 //
 // Time source (rule 11): TimeNsFn is a raw function pointer, so the fake that
 // drives it is file-scope TEST scaffolding (the budget_allocator_test
@@ -276,7 +276,7 @@ TEST_CASE("spanName covers every id below count") {
     }
 }
 
-TEST_CASE("local profiler does not touch the sanctioned instance") {
+TEST_CASE("local profiler keeps its capture fully isolated") {
     resetClock();
     pushNow(100);
     pushNow(150);
@@ -286,7 +286,11 @@ TEST_CASE("local profiler does not touch the sanctioned instance") {
     local.end(SpanId::FRAME);
 
     CHECK(local.frameSpanCount() == 1);
-    CHECK(&local != &Profiler::instance());
-    CHECK(Profiler::instance().frameSpanCount() == 0);
-    CHECK_FALSE(Profiler::instance().wasOverflowed());
+
+    // A second instance never sees the first one's capture (rule 11: state
+    // lives in explicit objects, never in a global singleton).
+    Profiler other{fakeNow};
+    other.beginFrame();
+    CHECK(other.frameSpanCount() == 0);
+    CHECK_FALSE(other.wasOverflowed());
 }

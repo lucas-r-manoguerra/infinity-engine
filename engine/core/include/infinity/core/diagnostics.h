@@ -31,15 +31,10 @@
 //                 Relaxed ordering is deliberate - counters are diagnostic
 //                 facts, not synchronization primitives; ordering guarantees
 //                 belong to the data they describe (rule 11).
-//   instance()  - Sanctioned exception to rule 11's "no mutable global
-//                 state", mirroring FaultInjector::instance(): diagnostics
-//                 are inherently global - systems across modules must report
-//                 into ONE object for totals to mean anything, and threading
-//                 a Diagnostics through every hot path would pollute APIs.
-//                 The singleton is one explicit object; tests that need
-//                 isolation construct a local Diagnostics and never touch
-//                 instance(). Prefer constructor injection; instance() is
-//                 for production wiring that cannot carry one by reference.
+//   Ownership   - The Diagnostics object is a plain object owned by the
+//                 runtime, injected by reference where counters are consumed
+//                 (rule 11: state lives in explicit objects, never in a global
+//                 singleton).
 #pragma once
 
 #include <array>
@@ -111,10 +106,6 @@ public:
     // Zeroes every counter. Atomic per counter, not a single atomic snapshot:
     // a concurrent increment may land after its counter was zeroed.
     void reset() noexcept;
-
-    // Engine-wide diagnostics (see the header brief for the rule-11
-    // tradeoff). Tests that need isolation construct a local Diagnostics.
-    [[nodiscard]] static Diagnostics& instance() noexcept;
 
 private:
     std::array<std::atomic<uint64_t>, COUNTER_COUNT> m_counters{};

@@ -123,8 +123,10 @@ que definen los targets de rendimiento del C++.
 
 ```
 1. Fundamentos (F0): layout, toolchain, doctest, CI, reglas opencode
-2. Módulos en ORDEN de dependencia, cada uno un static library target:
-   math → core → platform → ecs → renderer → runtime → ai → blueprint → assets
+2. Módulos en el ORDEN de las fases F0→F9, cada uno un static library target:
+   math → core → platform → renderer → ecs → runtime → ai → blueprint → assets
+   (la dependencia dirigida es renderer → ecs, ADR-052/F5.12: el renderer consume
+   el ECS, nunca al revés; el rasterizador puro de F4 se integra al mundo en F5.12)
 3. Cada módulo termina con: tests verdes, 0 leaks (ASan), benchmarks publicados
 4. Cuando runtime + renderer + ecs funcionen → "MVP parity" → el engine corre en C++
 5. AI y Blueprint se implementan directamente en C++ (interfaces definidas en F0)
@@ -249,7 +251,8 @@ Infinity-Engine/
 ├── third_party/           # solo doctest por ahora
 ├── tools/                 # codegen unificado (ADR-024): reflection, blueprint compiler, IA
 ├── scripts/               # format, lint, pre-commit
-└── docs/
+├── docs/
+└── assets/                # contenido data-driven: source → cooked → load (ADR-011)
 ```
 
 ---
@@ -410,7 +413,7 @@ para migrar a archetypes después (ADR-007).
 
 **Tareas**:
 - [ ] F5.1 `Entity` handle (u32 index + generation, sin punteros)
-- [ ] F5.2 `ComponentRegistry` (type-safe, data-only, reflection-aware — ADR-010)
+- [ ] F5.2 `ComponentRegistry` (type-safe, data-only; registra los descriptores de reflection — ADR-010, F5.15)
 - [ ] F5.3 `World` (spawn/destroy, comandos diferidos)
 - [ ] F5.4 `System` (una preocupación, deps explícitas + **read/write sets** — ADR-018)
 - [ ] F5.5 `Query` (con fast-path para mundo vacío)
@@ -422,6 +425,8 @@ para migrar a archetypes después (ADR-007).
 - [ ] F5.11 Benchmarks: query.iterate 10k entidades (target ~170μs) + empty fast-path (<5μs)
 - [ ] F5.12 Renderer como sistema del ECS (ADR-052): el renderer declara read/write sets y vive en el mundo
 - [ ] F5.13 Save/load = escenario (ADR-063): estado + cola de comandos; cargar = replay hasta el frame actual
+- [ ] F5.14 Pipeline de codegen unificado `tools/` (ADR-024/070): parseo → registro → generación → revisión, modelo común (AST + registro); lo consumen reflection (F5.15), IA (F7.4) y blueprints (F8.3); el output pasa los mismos gates que el código humano (regla 09)
+- [ ] F5.15 Reflection + serialización genérica (ADR-010): descriptores por componente (campos, tipos, propiedades) registrados en el ComponentRegistry + serialización genérica (sin serializadores a mano); habilita editor, blueprints, ContextSnapshot, save/load e inspector — diseñada antes de que existan muchos componentes
 
 **Criterios**: tests ECS verdes; query vacía sin overhead.
 
@@ -439,7 +444,7 @@ es un motor.
 **Tareas**:
 - [ ] F6.1 `Engine` (init → run → shutdown vía SystemRegistry — ADR-014)
 - [ ] F6.2 `apps/sandbox`: ventana, triángulo, ESC sale
-- [ ] F6.3 `apps/bench`: runner de benchmarks
+- [x] F6.3 `apps/bench`: runner de benchmarks (existe desde F1 — `infinity-bench`; F6 lo consolida con el CI)
 - [ ] F6.4 Modelo de threading formal en marcha (ADR-012): main/render/jobs, IO async
 - [ ] F6.5 Determinismo + replay (ADR-013): seed por frame, grabación de inputs/eventos
 - [ ] F6.6 Crash pipeline (ADR-015): crash/assert → reporte con backtrace + inputs + snapshot
@@ -516,8 +521,8 @@ produce C++ legible.
 
 | Fase | Objetivo | Depende de |
 |---|---|---|
-| F7 | IA (ContextSnapshot, agent, prompt, codegen — vía pipeline `tools/` ADR-024) | F6 |
-| F8 | Blueprint (VM, graph, compiler — vía pipeline `tools/` ADR-024) | F6 |
+| F7 | IA (ContextSnapshot, agent, prompt, codegen — vía pipeline `tools/` ADR-024) | F2 |
+| F8 | Blueprint (VM, graph, compiler — vía pipeline `tools/` ADR-024) | F2 |
 | F9 | Asset pipeline (async loader, mesh, texture — hot reload + manifest ADR-021, UUID ADR-040, glTF ADR-043, content packs ADR-067, diseño desde F0 ADR-011; **streaming por chunks ADR-077, procgen por seed ADR-076, materiales/shaders como data ADR-089**, terreno diseñado ADR-088) | F6 |
 | F10 | Escena 3D + física + mundo (scene graph, frustum, broad/narrowphase — **física vendored tras interfaz ADR-050/061**, cámaras first-class ADR-051, **spatial partitioning core ADR-082, animación data-driven ADR-084, terreno/open world ADR-088**) | F5, F9 |
 | F11 | Audio (streaming, 3D spatial, mixer — **como sistema del ECS ADR-087**) | F2 |
@@ -525,7 +530,18 @@ produce C++ legible.
 | F13 | Optimización + renderer-class (archetype ECS, job system — usa read/write sets ADR-018; **targets GPU-driven ADR-079, geometría virtualizada ADR-080, GI ADR-081**) | F6+ |
 | F14 | Multi-plataforma (Win32, Cocoa/Metal — sobre FS/threads/time ADR-023) + release/ecosistema (semver + changelog ADR-049; **compilación a escala como métrica ADR-097**) | F13 |
 
-> **Infraestructura adelantada (2026-07)**: la CI ya compila y testea `core`+`math` en Linux (gcc-14), macOS (clang-18 vía Homebrew) y Windows (clang-cl-18) en cada push. Queda el backend de plataforma (Win32/Cocoa) y el cableado MSVC nativo + sanitizers/tidy para esa fase.
+> **Dependencias F7/F8 = F2 (core), no F6**: la IA consume `ContextSnapshot` serializado sin
+> importar subsistemas (ADR-044) y el blueprint compila a C++ vía pipeline `tools/` (ADR-024);
+> ambos son módulos que dependen de core (regla 01). La validación de integración — IA headless
+> (F7.10, ADR-030) y blueprint → C++ → corre (F8.5) — corre contra el runtime F6, pero eso es
+> dependencia de tests, no de módulo: no se acopla la IA ni el blueprint al orquestador.
+
+> **Infraestructura adelantada (2026-07)**: la CI compila y testea los módulos actuales
+> (`core`, `math`, `platform`, `renderer`) en Linux (clang-20, preset `ci` con ASan/UBSan
+> + clang-tidy), macOS (clang-20 vía Homebrew `llvm@20`, UBSan-only) y Windows (clang-cl
+> latest, preset `debug`), con clang-format check y auditoría de licencias como jobs
+> aparte. Queda el backend de plataforma (Win32/Cocoa) y el cableado MSVC nativo +
+> sanitizers/tidy para esa fase.
 | F15 | Online / server-class (netcode con server authority ADR-062; **mundo particionable y persistente ADR-072/073, red simulada ADR-074, bandwidth budgets ADR-075, interest management ADR-093, telemetría ADR-094, seguridad online ADR-096**) | F10, F12 |
 
 Cada una se detalla cuando se acerca; los principios y métricas aplican igual.

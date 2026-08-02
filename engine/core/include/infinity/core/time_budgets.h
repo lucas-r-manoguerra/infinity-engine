@@ -26,19 +26,16 @@
 //                exact id/durationNs/budgetNs.
 //   Alerts     - The BudgetExceededFn callback is the wiring point for the
 //                future logger / dev console (ADR-046/035): the tracker stays
-//                decoupled and never bumps Diagnostics::instance() itself -
-//                the wiring lives where the alert callback is consumed
-//                (F2.14, ADR-055). setAlert(nullptr) disables the callback
-//                while checkFrame still reports the exceeded count.
+//                decoupled and never bumps Diagnostics itself - the wiring
+//                lives where the alert callback is consumed (F2.14, ADR-055).
+//                setAlert(nullptr) disables the callback while checkFrame still
+//                reports the exceeded count.
 //   Thread-safety - NOT thread-safe by design: checkFrame runs on the same
 //                frame thread as the Profiler it verifies (multi-thread span
 //                capture is future work, documented in profiler.h).
-//   instance() - Sanctioned exception to rule 11's "no mutable global state",
-//                mirroring Diagnostics/MemoryBudgets::instance(): production
-//                wiring needs one place where every subsystem declares its
-//                budget. The singleton is one explicit object; tests that need
-//                isolation construct a local TimeBudgets and never touch
-//                instance().
+//   Ownership  - The tracker is a plain object owned by the runtime, injected
+//                by reference where budgets are consumed (rule 11: state lives
+//                in explicit objects, never in a global singleton).
 #pragma once
 
 #include "infinity/core/error.h"
@@ -88,10 +85,6 @@ public:
     // the exact id/durationNs/budgetNs. O(MAX_FRAME_SPANS), zero allocation.
     // NOT thread-safe: same frame thread as the Profiler.
     [[nodiscard]] uint32_t checkFrame(const Profiler& profiler) noexcept;
-
-    // Engine-wide tracker (see the header brief for the rule-11 tradeoff).
-    // Tests that need isolation construct a local TimeBudgets.
-    [[nodiscard]] static TimeBudgets& instance() noexcept;
 
 private:
     // Declared budgets by SpanId; 0 = not declared.

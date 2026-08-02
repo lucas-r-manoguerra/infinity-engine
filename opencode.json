@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicepkg/opencode/refs/heads/main/opencode.schema.json",
+  "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "docs/rules/INDEX.md",
     "docs/rules/01-architecture.md",
@@ -13,7 +13,8 @@
     "docs/rules/09-opencode-harness.md",
     "docs/rules/10-github.md",
     "docs/rules/11-determinism.md",
-    "docs/rules/12-main-protection.md"
+    "docs/rules/12-main-protection.md",
+    "docs/references.md"
   ],
   "skills": {
     "auto_load": true,

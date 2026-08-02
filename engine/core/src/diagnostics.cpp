@@ -38,9 +38,4 @@ void Diagnostics::reset() noexcept {
     }
 }
 
-Diagnostics& Diagnostics::instance() noexcept {
-    static Diagnostics diagnostics;
-    return diagnostics;
-}
-
 } // namespace infinity::core

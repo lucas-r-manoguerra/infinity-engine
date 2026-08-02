@@ -2,9 +2,8 @@
 //
 // Diagnostics contract tests (F2.6, rule 08): the counter catalog is fixed
 // and zeroed at construction, increment/set/value are exact and independent,
-// concurrent increments lose no updates, reset zeroes everything, and
-// instance() is a stable process-wide singleton. Every case uses a LOCAL
-// instance (never instance()) so no test shares state with another (rule 11).
+// concurrent increments lose no updates, and reset zeroes everything. Every
+// case uses a LOCAL instance so no test shares state with another (rule 11).
 //
 // The mixed case pins the documented semantics: increment is an atomic add and
 // set is an atomic store - no read-modify-write ordering is guaranteed across
@@ -130,10 +129,6 @@ TEST_CASE("every counter id maps to a valid array slot") {
         CAPTURE(i);
         CHECK(diagnostics.value(id) == 3);
     }
-}
-
-TEST_CASE("instance returns a stable process-wide diagnostics") {
-    CHECK(&Diagnostics::instance() == &Diagnostics::instance());
 }
 
 TEST_CASE("increment and set compose in call order") {

@@ -2,6 +2,7 @@
 
 > Documentación arquitectónica del Infinity Engine (C++).
 > Este archivo crece con el proyecto. Refleja las decisiones actuales.
+> Las fases F0–F15 se definen en `docs/ROADMAP.md` §5 (tabla de fases).
 
 ---
 
@@ -18,22 +19,22 @@ Infinity-Engine/
 ├── engine/                   # El engine — CADA módulo = static library
 │   ├── core/                 # Base: Allocator, Time, Loop, Diagnostics, ThreadPool
 │   ├── math/                 # Vec2/3/4, Mat4, Quat, Transform
-│   ├── platform/             # Window, Input + backends (X11…)
-│   ├── ecs/                  # World, Entity, Component, System, Query
+│   ├── platform/             # Window, Input + backends (headless hoy; X11/Win32/Cocoa según disponibilidad)
+│   ├── ecs/                  # World, Entity, Component, System, Query (F5, planificado)
 │   ├── renderer/             # Interfaz + backends (software, vulkan)
-│   ├── ai/                   # ContextSnapshot, Agent, Prompt, CodeGen
-│   ├── blueprint/            # VM, Node, Graph, Compiler (→ C++)
-│   └── runtime/              # Engine lifecycle: init → run → shutdown
+│   ├── ai/                   # ContextSnapshot, Agent, Prompt, CodeGen (F7, planificado)
+│   ├── blueprint/            # VM, Node, Graph, Compiler (→ C++) (F8, planificado)
+│   └── runtime/              # Engine lifecycle: init → run → shutdown (F6, planificado)
 ├── apps/                     # Ejecutables
-│   ├── sandbox/              # Entry point del engine (ventana + escena demo)
+│   ├── sandbox/              # Entry point del engine (ventana + escena demo) (F6, planificado)
 │   └── bench/                # Benchmarks (Release)
 ├── tests/                    # CTest — espejo de engine/
 │   ├── core/  math/  ecs/  renderer/  ...
 ├── third_party/              # Dependencias vendored (solo doctest por ahora)
 ├── scripts/                  # Scripts de desarrollo (format, lint, hooks)
-├── tools/                    # Codegen unificado (ADR-024): reflection, blueprint compiler, IA
+├── tools/                    # Codegen unificado (ADR-024): reflection, blueprint compiler, IA (F7, planificado)
 ├── docs/                     # VISION, ROADMAP, ARCHITECTURE, rules/
-└── assets/                   # Contenido data-driven: source → cooked → load (ADR-011)
+└── assets/                   # Contenido data-driven: source → cooked → load (F9, planificado; ADR-011)
 ```
 
 ### Estructura interna de un módulo
@@ -68,9 +69,10 @@ Si un archivo pasa de ~300 líneas, es hora de partir.
 
 ```
 apps/
+  ├── bench   → infinity_math, infinity_renderer   (medición de hot paths desde F1)
   └── sandbox → infinity_runtime
 engine/runtime  → core, platform, renderer, ecs
-engine/renderer → core, math, platform     (escena/pipeline → RHI → backend)
+engine/renderer → core, math, ecs (+ platform con backend Vulkan, F4.5)   (los sistemas de render viven en el ECS, ADR-052/F5.12)
 engine/ecs      → core, math
 engine/platform → core
 engine/ai       → core            (habla con el resto vía ContextSnapshot serializado)
@@ -91,7 +93,7 @@ engine/core     → (nada)
 
 3. **Plataforma siempre abstraída**
    - `platform/window.h` define la interfaz
-   - `platform/src/x11/window_x11.cpp` implementa para Linux
+   - `platform/src/headless/headless_window.cpp` implementa el backend actual (X11 pendiente)
    - El runtime nunca incluye headers del backend
 
 4. **AI habla con todo a través de contexto serializado**
@@ -128,7 +130,8 @@ nunca se depende de `bad_alloc` en hot paths. Error handling visible y verificab
 
 ### ADR-004: Software Renderer para MVP
 **Contexto**: Sin Vulkan SDK instalado. Necesitamos algo que renderice en pantalla desde el día 1.
-**Decisión**: Framebuffer por software vía X11 (shared memory).
+**Decisión**: Renderer por software (framebuffer BGRA32 rasterizado por tiles, ADR-004)
+sin dependencia de GPU; corre headless y vía el backend de plataforma (X11 pendiente).
 **Consecuencia**: Iteración rápida sin depender de drivers GPU. Vulkan queda como backend futuro.
 
 ### ADR-005: Allocators Explícitos
@@ -144,7 +147,7 @@ para allocaciones frame-scoped.
 
 ### ADR-007: ECS Archetype-based (futuro)
 **Contexto**: Para el MVP usamos un ECS simple de sparse sets. Para AAA necesitamos archetypes.
-**Decisión**: MVP con diseño simple pero con la misma interfaz. En M2 migramos a
+**Decisión**: MVP con diseño simple pero con la misma interfaz. En F13 migramos a
 archetypes sin cambiar la API pública.
 **Consecuencia**: Podemos construir features arriba sin reescribir después.
 
@@ -506,14 +509,14 @@ filosofía del proyecto) y el cooked format (ADR-011) es lo que corre.
 de assets tiene un formato de origen estándar y un formato runtime propio.
 
 ### ADR-044: Context curation — la IA ve lo que le conviene
-**Contexto**: `ContextSnapshot` (ADR-007) puede explotar: la IA no puede ver
+**Contexto**: `ContextSnapshot` (ADR-044) puede explotar: la IA no puede ver
 el mundo entero, y todo el contexto cuesta tokens y atención.
 **Decisión**: El snapshot pasa por **curaduría de contexto**: qué entidades,
 qué eventos, qué estado — priorizado, limitado y resumido por **presupuesto de
 tokens** explícito.
 **Consecuencia**: La IA entiende la escena en vez de ahogarse en datos. El
 presupuesto de contexto se configura y se mide, igual que la memoria (ADR-034)
-y el rendimiento (ADR-008).
+y el rendimiento (ADR-055).
 
 ### ADR-045: Hot reload de código nativo (dev-only)
 **Contexto**: En el loop de IA que genera C++ y lo testea, reiniciar el engine
@@ -635,7 +638,7 @@ al property testing (ADR-017).
 
 ### ADR-057: Memory store interno del engine (retrieval para IA)
 **Contexto**: La IA necesita recordar: decisiones previas, dónde están las cosas,
-qué se intentó. El snapshot (ADR-007) es estado del mundo; no es historia del
+qué se intentó. El snapshot (ADR-044) es estado del mundo; no es historia del
 proyecto.
 **Decisión**: Un **memory store interno del engine**: el engine guarda y recupera
 contexto relevante (sesiones, decisiones de diseño, bugs conocidos) y lo inyecta
@@ -665,7 +668,7 @@ tres semanas. El producto instalable nace con el runtime, no después.
 **Contexto**: "Un año de librerías y ninguna demo" es el riesgo clásico de un
 engine.
 **Decisión**: Cada fase (F1+) termina con un **demo corriendo**, no solo tests
-verdes: F1 sandbox imprime un cálculo real, F4 triángulo, F6 MVP. El motor
+verdes: F1 infinity-bench mide la math, F4 triángulo, F6 MVP. El motor
 queda **siempre jugable**.
 **Consecuencia**: Progreso visible en cada hito y antídoto contra la espiral de
 infraestructura. Cada fase se puede mostrar, y la IA valida (ADR-030) contra
@@ -1061,7 +1064,7 @@ del frame.
 | Miembros privados | `m_` prefijo (`m_position`) |
 | Archivos | snake_case (`vec3.h`, `game_loop.cpp`) |
 | Constantes | SCREAMING_SNAKE_CASE (`MAX_ENTITIES`, `FIXED_DT`) |
-| Headers | `#pragma once`, include guards redundantes no |
+| Headers | `#pragma once`; sin include guards redundantes |
 | Documentación | Doxygen breve en headers públicos |
 
 Detalles completos en `docs/rules/`.

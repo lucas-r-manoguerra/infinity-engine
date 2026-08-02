@@ -5,13 +5,13 @@
 ## Capas y dirección de dependencia
 
 ```
-apps/  →  infinity_runtime
-runtime  →  core, platform, renderer, ecs
-renderer →  core, math, platform
-ecs      →  core, math
+apps/  →  infinity_runtime                    (F6, planificado)
+runtime  →  core, platform, renderer, ecs     (F6, planificado)
+renderer →  core, math, ecs (F5.12, planificado) (+ platform con backend Vulkan, F4.5)
+ecs      →  core, math                        (F5, planificado)
 platform →  core
-ai       →  core            (al resto vía ContextSnapshot serializado)
-blueprint→  core
+ai       →  core            (F7, planificado — al resto vía ContextSnapshot serializado)
+blueprint→  core            (F8, planificado)
 assets   →  core, platform   (futuro F9: ADR-011/040, streaming 077, procgen 076)
 network  →  core             (futuro F15: ADR-062 server authority, partición 073, interés 093)
 math     →  (nada)
@@ -26,7 +26,8 @@ core     →  (nada)
 3. Una dependencia ilegal no se discute: **rompe el build**.
 4. `ai/` nunca importa ECS/Renderer directamente — recibe `ContextSnapshot` (data-only).
 5. `platform/` define interfaces; los backends viven en `src/<backend>/` y se eligen en
-   tiempo de compilación (por ahora: X11 en Linux).
+   tiempo de compilación según la plataforma (headless hoy; X11 en Linux, Win32 en Windows,
+   Cocoa en macOS según disponibilidad). El backend es agnóstico: multiplataforma por diseño.
 6. Los módulos futuros (`assets` F9, `network` F15) entran a este contrato cuando
    arranca su fase; la dirección de dependencia se respeta igual. El contrato completo
    vive en `docs/ARCHITECTURE.md` (97 ADRs) — esta regla es el resumen operativo.

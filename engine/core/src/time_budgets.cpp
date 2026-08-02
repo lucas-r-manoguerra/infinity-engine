@@ -55,9 +55,4 @@ uint32_t TimeBudgets::checkFrame(const Profiler& profiler) noexcept {
     return exceeded;
 }
 
-TimeBudgets& TimeBudgets::instance() noexcept {
-    static TimeBudgets budgets;
-    return budgets;
-}
-
 } // namespace infinity::core

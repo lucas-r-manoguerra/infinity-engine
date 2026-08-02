@@ -70,18 +70,22 @@ las reglas de dependencia se cumplen en tiempo de link, no por buena voluntad.
 │                   Infinity Engine                 │
 ├──────────────────────────────────────────────────┤
 │  ┌──────────┐  ┌──────────┐  ┌────────────────┐ │
-│  │  Core     │  │  Runtime  │  │  Editor Suite  │ │
-│  │  - ECS    │  │  - Loop  │  │  - Blueprint   │ │
-│  │  - Math   │  │  - Time  │  │  - Level       │ │
-│  │  - Memory │  │  - Job   │  │  - Debug       │ │
+│  │  Core     │  │  ECS      │  │  Editor Suite  │ │
+│  │  - Memory │  │  - World  │  │  - Blueprint   │ │
+│  │  - Math   │  │  - Query  │  │  - Level       │ │
+│  │  - Loop   │  │  - Audio* │  │  - Debug       │ │
 │  └────┬─────┘  └────┬─────┘  └───────┬────────┘ │
 │       │              │                │          │
 │  ┌────▼──────────────▼────────────────▼────────┐ │
-│  │           Platform Abstraction Layer         │ │
-│  │  ┌──────┐  ┌───────┐  ┌──────┐  ┌────────┐ │ │
-│  │  │X11/  │  │Vulkan │  │Audio │  │Input   │ │ │
-│  │  │Wayland│  │       │  │      │  │        │ │ │
-│  │  └──────┘  └───────┘  └──────┘  └────────┘ │ │
+│  │   Renderer — RHI backend-agnostic (ADR-009)   │ │
+│  │  ┌─────────┐  ┌────────┐  ┌───────────────┐  │ │
+│  │  │Software │  │Vulkan  │  │Null (headless)│  │ │
+│  │  │backend  │  │backend │  │               │  │ │
+│  │  └─────────┘  └────────┘  └───────────────┘  │ │
+│  │     Platform Abstraction (input determinista) │ │
+│  │  ┌───────────┐  ┌──────┐  ┌──────┐          │ │
+│  │  │X11/Wayland│  │Win32 │  │Cocoa │          │ │
+│  │  └───────────┘  └──────┘  └──────┘          │ │
 │  └──────────────────────────────────────────────┘ │
 │                                                    │
 │  ┌──────────────────────────────────────────────┐  │
@@ -93,6 +97,8 @@ las reglas de dependencia se cumplen en tiempo de link, no por buena voluntad.
 │  └──────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────┘
 ```
+
+\* Audio es un sistema del ECS (ADR-087) con la lib vendored detrás de interfaz propia (ADR-061).
 
 ### One File = One Task
 

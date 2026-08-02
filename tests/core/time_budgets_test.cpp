@@ -9,7 +9,7 @@
 // not exceed, a span without a declared budget never alerts, a full capture
 // (overflow) alerts only for the recorded spans, setAlert(nullptr) silences
 // the callback while the exceeded count is still returned, and a local
-// instance never touches TimeBudgets::instance() (rule 11).
+// instance keeps its budgets fully isolated (rule 11: no global state).
 //
 // Time source (rule 11): TimeNsFn is a raw function pointer, so the fake that
 // drives it is file-scope TEST scaffolding (the profiler_test g_fakeClock
@@ -346,13 +346,14 @@ TEST_CASE("setAlert with nullptr silences the callback but keeps the count") {
     CHECK(g_alerts.count == 0);
 }
 
-TEST_CASE("local instance does not touch TimeBudgets instance") {
+TEST_CASE("local instance keeps its budgets fully isolated") {
     resetClock();
     TimeBudgets local;
     CHECK(local.setBudget(SpanId::ECS_UPDATE, 100).has_value());
 
-    CHECK(&local != &TimeBudgets::instance());
-    CHECK(TimeBudgets::instance().budget(SpanId::ECS_UPDATE) == 0);
-    CHECK(TimeBudgets::instance().budget(SpanId::FRAME) == 0);
-    CHECK(&TimeBudgets::instance() == &TimeBudgets::instance());
+    // A second instance never sees the first one's budgets (rule 11: state
+    // lives in explicit objects, never in a global singleton).
+    TimeBudgets other;
+    CHECK(other.budget(SpanId::ECS_UPDATE) == 0);
+    CHECK(other.budget(SpanId::FRAME) == 0);
 }
