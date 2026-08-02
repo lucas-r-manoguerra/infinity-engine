@@ -49,7 +49,7 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | ✅ Completada |
 | **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection, file system + UTF-8, diagnostics, SystemRegistry, memory budgets, profiler, time budgets por sistema | ✅ Completada (F2.1–F2.14) |
 | **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) — headless (ADR-030) + input determinista (ADR-033) + contexto RAII listos; backend X11 pendiente | 🔄 En curso |
-| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + esqueleto Vulkan + headless | 🔄 En curso (F4.1–4.4, 4.7, 4.9; faltan Vulkan, Null, offscreen runtime, cámaras) |
+| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + cámara first-class (vista/proyección world→pixel) + esqueleto Vulkan + headless | 🔄 En curso (F4.1–4.4, 4.7, 4.9, 4.10; faltan Vulkan, Null, cámaras → render targets) |
 | **F5** | ECS | World, Entity (handle + generation), Component, System, Query con read/write sets | ⏳ Planificada |
 | **F6** | Runtime + MVP Parity 🏁 | `apps/sandbox`: ventana + triángulo + ECS. El engine corre y se puede mostrar | ⏳ Planificada |
 | **F7** | IA | `ContextSnapshot`, Agent, Prompt templates, CodeGen → C++ vía pipeline `tools/` | ⏳ Planificada |
