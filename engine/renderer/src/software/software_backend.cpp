@@ -4,6 +4,7 @@
 #include "infinity/renderer/color.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -18,15 +19,24 @@ constexpr std::size_t INITIAL_VERTEX_CAPACITY = 192;
 constexpr std::size_t INITIAL_TILE_CAPACITY = 64;
 
 // Packs a linear color into BGRA32 after a single linear-to-sRGB conversion
-// (ADR-037). Rounding is +0.5 then truncate, matching the test oracle; bytes
-// are B,G,R,A in memory (little-endian uint32).
+// (ADR-037). RGB goes through the precomputed 1024-entry lookup table (G2)
+// instead of a per-channel std::pow; alpha is packed without a gamma curve.
+// Rounding is +0.5 then truncate, matching the test oracle; bytes are
+// B,G,R,A in memory (little-endian uint32).
 [[nodiscard]] std::uint32_t packSrgb(const Color& linearColor) noexcept {
-    const Color srgb = linearToSrgb(linearColor);
+    const std::array<std::uint8_t, 1024>& lut = srgbLookupTable();
     const auto byte = [](float channel) {
         // NOLINTNEXTLINE(bugprone-incorrect-roundings) -- contract: +0.5 then truncate.
         return static_cast<std::uint32_t>(0.5f + (255.0f * channel));
     };
-    return (byte(srgb.a) << 24) | (byte(srgb.r) << 16) | (byte(srgb.g) << 8) | byte(srgb.b);
+    const auto lookup = [&lut](float linear) {
+        const float clamped = std::clamp(linear, 0.0f, 1.0f);
+        // NOLINTNEXTLINE(bugprone-incorrect-roundings) -- contract: +0.5 then truncate.
+        const auto index = static_cast<std::size_t>(0.5f + (1023.0f * clamped));
+        return static_cast<std::uint32_t>(lut[index]);
+    };
+    return (byte(linearColor.a) << 24) | (lookup(linearColor.r) << 16) |
+           (lookup(linearColor.g) << 8) | lookup(linearColor.b);
 }
 } // namespace
 

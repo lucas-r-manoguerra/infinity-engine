@@ -2,6 +2,7 @@ infinity_add_test(infinity_renderer_tests
     main.cpp
     error_test.cpp
     color_test.cpp
+    color_lut_test.cpp
     render_target_test.cpp
     software_test.cpp
     camera_test.cpp
