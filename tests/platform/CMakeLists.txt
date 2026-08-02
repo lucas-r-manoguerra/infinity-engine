@@ -2,6 +2,8 @@ infinity_add_test(infinity_platform_tests
     main.cpp
     error_test.cpp
     input_test.cpp
+    platform_test.cpp
+    window_test.cpp
 )
 
 # The tests touch core types directly (Allocator, ErrorCategory), so core is
