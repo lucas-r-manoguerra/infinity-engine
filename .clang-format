@@ -1,6 +1,6 @@
 # Infinity Engine formatting contract (rule 02). This file is law: CI runs
-# clang-format --dry-run --Werror on every PR (F0.6). The pinned tool is
-# clang-format-18; older versions may not understand newer keys.
+# clang-format --dry-run --Werror on every PR (F4.10). The pinned tool is
+# clang-format-20; older versions may not understand newer keys.
 #
 # Base LLVM, adjusted to the repo conventions:
 #   - 4-space indentation

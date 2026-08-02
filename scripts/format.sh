@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Infinity Engine - code formatting and linting (F0.6).
+# Infinity Engine - code formatting and linting (F4.10).
 #
 # Usage:
 #   ./scripts/format.sh            apply clang-format in place (default)
@@ -44,8 +44,12 @@ if [[ -z "${CLANG_FORMAT}" ]]; then
 fi
 
 # Tracked + untracked (non-ignored) C++ sources. Vendored code and generated
-# tooling are never touched.
-mapfile -t SOURCES < <(
+# tooling are never touched. Avoids mapfile so the script keeps working on
+# macOS's default bash 3.2.
+SOURCES=()
+while IFS= read -r source; do
+    SOURCES+=("${source}")
+done < <(
     git ls-files -co --exclude-standard \
         -- '*.cpp' '*.cc' '*.cxx' '*.h' '*.hpp' '*.hxx' \
         | grep -vE '^(build/|third_party/|\.devcontainer/|\.github/)' || true

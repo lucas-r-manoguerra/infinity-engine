@@ -1,5 +1,5 @@
 {
-  "name": "Infinity Engine - F0 (C++23)",
+  "name": "Infinity Engine - F4 (C++23)",
   "build": {
     "dockerfile": "Dockerfile"
   },
