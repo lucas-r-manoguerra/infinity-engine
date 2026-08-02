@@ -9,6 +9,9 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# X11 backend deps (F3.1): libx11-dev is the native window API on Linux (peer
+# of Win32 on Windows, not a vendored dependency, ADR-061); xvfb+xauth let
+# tests open a real window headlessly via xvfb-run.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
@@ -16,9 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake \
         git \
         g++-14 \
+        libx11-dev \
         ninja-build \
         software-properties-common \
         wget \
+        xauth \
+        xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # LLVM 20 for noble (Ubuntu 24.04): not in the distro archive, so add the
