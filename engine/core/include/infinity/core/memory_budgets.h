@@ -22,11 +22,11 @@
 //                skip unregistered entries. An unlimited allocator
 //                (budgetBytes == 0) contributes 0 to totalBudgetBytes: an
 //                unlimited budget is not a budget (ADR-034).
-//   instance() - Sanctioned exception to rule 11's "no mutable global state",
-//                mirroring Diagnostics::instance(): production wiring needs
-//                one place where every subsystem registers. The singleton is
-//                one explicit object; tests that need isolation construct a
-//                local MemoryBudgets and never touch instance().
+//   Ownership  - The tracker is a plain object owned by the runtime, injected
+//                by reference where budgets are consumed (rule 11: state lives
+//                in explicit objects, never in a global singleton). Each
+//                registered allocator must outlive the registration and the
+//                tracker instance.
 #pragma once
 
 #include "infinity/core/budget_allocator.h"
@@ -99,10 +99,6 @@ public:
     // entries and unlimited allocators (budgetBytes == 0) contribute 0.
     // O(BUDGET_COUNT), no allocation.
     [[nodiscard]] size_t totalBudgetBytes() const noexcept;
-
-    // Engine-wide tracker (see the header brief for the rule-11 tradeoff).
-    // Tests that need isolation construct a local MemoryBudgets.
-    [[nodiscard]] static MemoryBudgets& instance() noexcept;
 
 private:
     std::array<BudgetAllocator*, BUDGET_COUNT> m_allocators{};

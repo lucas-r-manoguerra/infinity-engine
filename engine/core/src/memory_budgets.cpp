@@ -62,9 +62,4 @@ size_t MemoryBudgets::totalBudgetBytes() const noexcept {
     return total;
 }
 
-MemoryBudgets& MemoryBudgets::instance() noexcept {
-    static MemoryBudgets budgets;
-    return budgets;
-}
-
 } // namespace infinity::core

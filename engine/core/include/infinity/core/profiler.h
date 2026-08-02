@@ -37,12 +37,10 @@
 //   Thread-safety- NOT thread-safe by design: the profiler is used from the
 //                  single frame thread. Multi-thread span capture is future
 //                  work (documented, not a silent gap).
-//   instance()   - Sanctioned exception to rule 11's "no mutable global
-//                  state", mirroring Diagnostics::instance(): systems across
-//                  modules must report into ONE profiler for a frame's totals
-//                  to mean anything. The singleton is one explicit object;
-//                  tests that need isolation construct a local Profiler with a
-//                  fake time source and never touch instance().
+//   Ownership   - The Profiler is a plain object owned by the runtime,
+//                  injected by reference where spans are recorded (rule 11:
+//                  state lives in explicit objects, never in a global
+//                  singleton).
 #pragma once
 
 #include <array>
@@ -149,11 +147,6 @@ public:
     [[nodiscard]] static constexpr std::string_view spanName(SpanId id) noexcept {
         return SPAN_NAMES[static_cast<size_t>(id)];
     }
-
-    // Engine-wide profiler (see the header brief for the rule-11 tradeoff).
-    // Tests that need isolation construct a local Profiler with a fake time
-    // source and never touch instance().
-    [[nodiscard]] static Profiler& instance() noexcept;
 
 private:
     struct ActiveSpan {

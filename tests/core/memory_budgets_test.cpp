@@ -5,8 +5,7 @@
 // registration) is a recoverable error (rule 04), unregistered ids query as
 // null/zero, aggregates (totalUsedBytes/totalBudgetBytes) skip unregistered
 // entries and treat an unlimited (budget 0) allocator as contributing 0, and a
-// local instance never touches MemoryBudgets::instance() (rule 11: tests build
-// local instances and leave the singleton empty).
+// local instance keeps its registry fully isolated (rule 11: no global state).
 #include "infinity/core/budget_allocator.h"
 #include "infinity/core/memory_budgets.h"
 
@@ -133,7 +132,7 @@ TEST_CASE("totalUsedBytes and totalBudgetBytes aggregate registered entries only
     rendererBudget.deallocate(rendererBlock, 30);
 }
 
-TEST_CASE("local instance does not touch MemoryBudgets instance") {
+TEST_CASE("local instance keeps its registry fully isolated") {
     MallocBacking backing;
     BudgetAllocator allocator{256, backing};
     MemoryBudgets local;
@@ -142,8 +141,10 @@ TEST_CASE("local instance does not touch MemoryBudgets instance") {
     CHECK(local.budget(BudgetId::ECS) == &allocator);
     CHECK(local.totalUsedBytes() == 0);
 
-    CHECK(MemoryBudgets::instance().budget(BudgetId::ECS) == nullptr);
-    CHECK(MemoryBudgets::instance().totalUsedBytes() == 0);
-    CHECK(MemoryBudgets::instance().totalBudgetBytes() == 0);
-    CHECK(&MemoryBudgets::instance() == &MemoryBudgets::instance());
+    // A second instance never sees the first one's registry (rule 11: state
+    // lives in explicit objects, never in a global singleton).
+    MemoryBudgets other;
+    CHECK(other.budget(BudgetId::ECS) == nullptr);
+    CHECK(other.totalUsedBytes() == 0);
+    CHECK(other.totalBudgetBytes() == 0);
 }
