@@ -13,7 +13,9 @@ namespace {
 // caller bug - a programming invariant, asserted in debug like every core
 // invariant. Release keeps the raw array access; spans are hot-path and
 // bounds-checking is not (rule 08).
-[[nodiscard]] constexpr bool isValidSpanId(SpanId id) noexcept {
+// Release (NDEBUG) strips the asserting callers, so the helper is only used in
+// debug builds; keep it declared to satisfy -Werror in both configurations.
+[[nodiscard]] [[maybe_unused]] constexpr bool isValidSpanId(SpanId id) noexcept {
     return std::to_underlying(id) < SPAN_COUNT;
 }
 
@@ -39,7 +41,7 @@ void Profiler::begin(SpanId id) noexcept {
     ++m_activeDepth;
 }
 
-void Profiler::end(SpanId id) noexcept {
+void Profiler::end([[maybe_unused]] SpanId id) noexcept {
     assert(isValidSpanId(id));
     assert(m_activeDepth > 0); // end() on an empty stack: caller bug (ADR-003)
     assert(m_activeSpans[m_activeDepth - 1].id == id); // LIFO mismatch: caller bug (ADR-003)
