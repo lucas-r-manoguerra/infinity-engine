@@ -9,6 +9,8 @@ infinity_add_test(infinity_core_tests
     fault_injector_test.cpp
     fs_file_test.cpp
     fs_os_test.cpp
+    fs_os_fault_test.cpp
+    fs_os_tree_test.cpp
     fs_path_and_fault_test.cpp
     fs_tree_test.cpp
     loop_test.cpp
