@@ -10,6 +10,7 @@ add_executable(infinity-bench
     bench_harness.h
     bench_math.cpp
     bench_arena.cpp
+    bench_triangle.cpp
 )
 
-target_link_libraries(infinity-bench PRIVATE infinity::math infinity::core)
+target_link_libraries(infinity-bench PRIVATE infinity::math infinity::core infinity::renderer)
