@@ -1,9 +1,16 @@
 add_library(infinity_platform STATIC
+    src/headless/headless_window.cpp
     src/input.cpp
+    src/platform.cpp
+    src/window.cpp
 )
 
 target_include_directories(infinity_platform PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+# Private include root so the implementation can reach src/<backend>/ headers.
+target_include_directories(infinity_platform PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
 # Backend selection (rule 01): the headless backend (ADR-030) is the only one
