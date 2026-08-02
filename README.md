@@ -48,7 +48,7 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | **F0** | Fundamentos | Layout CMake, toolchain C++23, doctest vendored, sanitizers, CI, reglas opencode | ✅ Completada |
 | **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | ✅ Completada |
 | **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection, file system + UTF-8, diagnostics, SystemRegistry, memory budgets, profiler, time budgets por sistema | ✅ Completada (F2.1–F2.14) |
-| **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) | ⏳ Planificada |
+| **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) — headless (ADR-030) + input determinista (ADR-033) + contexto RAII listos; backend X11 pendiente | 🔄 En curso |
 | **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + esqueleto Vulkan + headless | ⏳ Planificada |
 | **F5** | ECS | World, Entity (handle + generation), Component, System, Query con read/write sets | ⏳ Planificada |
 | **F6** | Runtime + MVP Parity 🏁 | `apps/sandbox`: ventana + triángulo + ECS. El engine corre y se puede mostrar | ⏳ Planificada |
