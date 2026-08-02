@@ -379,14 +379,20 @@ primero para no acoplar renderer a X11.
       falta el uso desde runtime/editor (cámaras → targets)
 - [x] F4.9 Tests de renderer (checksums de framebuffer) + benchmark de triangle fill
       (`apps/bench/bench_triangle.cpp`; ver §7)
-- [ ] F4.10 Cámaras first-class (ADR-051): múltiples cámaras, cada una con render target y capa propia
+- [x] F4.10 Cámaras first-class (ADR-051): `Camera` como dato del mundo (posición, rotación,
+      fov, aspect, near/far) + `buildViewProjection` y `projectWorldToScreen` en
+      `infinity/renderer/camera.h`; la cámara → render target y las múltiples cámaras con
+      capas llegan con el ECS (F5, ADR-052)
 
-**Progreso F4 (branch feat/f4-renderer)**: interfaz RHI + `RenderTarget` BGRA32 move-only con
-`checksum()` FNV-1a-64 determinista; backend software por tiles con half-space scan, culling
-screen-space y color interpolado; sRGB exactamente una vez por pixel en present (ADR-037);
-path multi-thread (tiles disjuntos) produce checksum idéntico al serial (rule 11); 0 alloc en
-el hot path (crecimiento → `ALLOCATION_FAILED`); 32 test cases / 268 assertions verdes con ASan
-sin leaks.
+**Progreso F4 (branches feat/f4-renderer → feat/f4-cameras)**: interfaz RHI + `RenderTarget`
+BGRA32 move-only con `checksum()` FNV-1a-64 determinista; backend software por tiles con
+half-space scan, culling screen-space y color interpolado; sRGB exactamente una vez por pixel
+en present (ADR-037); path multi-thread (tiles disjuntos) produce checksum idéntico al serial
+(rule 11); 0 alloc en el hot path (crecimiento → `ALLOCATION_FAILED`); cámara first-class
+(ADR-051) como dato serializable (ADR-038): vista/proyección column-major con fov en grados,
+mapping world → pixel top-left con +y hacia abajo, rechazo de puntos fuera del frustum /
+detrás de cámara / targets degenerados, y validación de parámetros (`INVALID_ARGUMENT`,
+rule 04); 32 test cases de renderer + 13 de cámara verdes con ASan sin leaks.
 
 **Criterios**: checksums deterministas; renderer software correcto y testeado;
 **triángulo visible** (ADR-060: vertical slice de F4).
