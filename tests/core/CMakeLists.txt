@@ -31,7 +31,7 @@ infinity_add_test(infinity_core_tests
 
 # POSIX filesystem backend contract tests (F3.5): the real backend exists on
 # POSIX hosts only, so the contract tests compile there; on Windows the backend
-# is a NOT_SUPPORTED stub and the stub contract test covers it instead (rule
+# is an UNSUPPORTED stub and the stub contract test covers it instead (rule
 # 04: an error branch declared without a test is a known defect).
 if(UNIX OR APPLE)
     target_sources(infinity_core_tests PRIVATE fs_os_test.cpp)

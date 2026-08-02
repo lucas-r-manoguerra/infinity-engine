@@ -8,7 +8,7 @@
 // check-then-rename fallback (accepted TOCTOU race).
 //
 // Portability: the POSIX file API (dirent, stat, unistd) exists on Linux and
-// macOS only, so the real implementation is compiled there and a NOT_SUPPORTED
+// macOS only, so the real implementation is compiled there and an UNSUPPORTED
 // stub elsewhere (Windows today): the PosixFileSystem type and every operation
 // stay available on every host, reporting an explicit error instead of failing
 // to link (rule 04). The consumer chooses the backend, never the build.
@@ -331,19 +331,19 @@ ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCall
 #else
 
 // Non-POSIX hosts (Windows today): the POSIX file API does not exist, so the
-// backend is a stub. Every operation reports NOT_SUPPORTED before touching
+// backend is a stub. Every operation reports UNSUPPORTED before touching
 // anything (no probe, no validation, no host call); parameters are named and
 // ignored to satisfy -Werror and clang-tidy, and the helpers in fs_os_detail
 // are never reached. A native backend for the host replaces this stub without
 // changing the public API (rule 04, not_supported category).
 Expected<bool> PosixFileSystem::exists(std::string_view path) noexcept {
     (void)path;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 Expected<uint64_t> PosixFileSystem::fileSize(std::string_view path) noexcept {
     (void)path;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 Expected<std::size_t> PosixFileSystem::readFile(std::string_view path, void* buffer,
@@ -351,7 +351,7 @@ Expected<std::size_t> PosixFileSystem::readFile(std::string_view path, void* buf
     (void)path;
     (void)buffer;
     (void)capacity;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 Expected<std::size_t> PosixFileSystem::writeFile(std::string_view path, const void* data,
@@ -359,23 +359,23 @@ Expected<std::size_t> PosixFileSystem::writeFile(std::string_view path, const vo
     (void)path;
     (void)data;
     (void)size;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::remove(std::string_view path) noexcept {
     (void)path;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::rename(std::string_view from, std::string_view to) noexcept {
     (void)from;
     (void)to;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::makeDirectory(std::string_view path) noexcept {
     (void)path;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCallback callback,
@@ -383,7 +383,7 @@ ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCall
     (void)path;
     (void)callback;
     (void)userData;
-    return std::unexpected(CoreError::NOT_SUPPORTED);
+    return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 #endif // defined(__unix__) || defined(__APPLE__)

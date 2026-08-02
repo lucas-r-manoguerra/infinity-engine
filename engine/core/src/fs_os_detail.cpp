@@ -68,7 +68,7 @@ bool entryIsDirectory(const std::string& parent, std::string_view name,
 #else
 
 // Non-POSIX hosts (Windows today): never reached (fs_os.cpp stubs every
-// operation to NOT_SUPPORTED before calling a helper), but the symbols must
+// operation to UNSUPPORTED before calling a helper), but the symbols must
 // exist so the static library links. Parameters are named and ignored to
 // satisfy -Werror and clang-tidy.
 CoreError mapErrno(int error) noexcept {

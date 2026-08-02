@@ -2,7 +2,7 @@
 //
 // Non-POSIX host contract for the POSIX filesystem backend (F3.5, ADR-023,
 // rule 04): on hosts without the POSIX file API (Windows today), PosixFileSystem
-// is a stub and every operation reports NOT_SUPPORTED, so the type and the API
+// is a stub and every operation reports UNSUPPORTED, so the type and the API
 // stay available and the missing capability is an explicit, documented error
 // instead of a link failure. Compiled only on non-POSIX hosts (see
 // tests/core/CMakeLists.txt); on POSIX hosts the real backend is exercised by
@@ -49,53 +49,53 @@ void collectEntries(const DirectoryEntry& entry, void* userData) noexcept {
     (void)userData;
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for exists") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for exists") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.exists(PATH), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.exists(PATH), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for fileSize") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for fileSize") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.fileSize(PATH), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.fileSize(PATH), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for readFile") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for readFile") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.readFile(PATH, nullptr, 0), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.readFile(PATH, nullptr, 0), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for writeFile") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for writeFile") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.writeFile(PATH, nullptr, 0), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.writeFile(PATH, nullptr, 0), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for remove") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for remove") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.remove(PATH), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.remove(PATH), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for rename") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for rename") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.rename(PATH, OTHER), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.rename(PATH, OTHER), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for makeDirectory") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for makeDirectory") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
-    CHECK(failsWith(fs.makeDirectory(PATH), CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(fs.makeDirectory(PATH), CoreError::UNSUPPORTED));
 }
 
-TEST_CASE("PosixFileSystem stub reports NOT_SUPPORTED for listDirectory") {
+TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for listDirectory") {
     FaultInjector injector;
     PosixFileSystem fs(injector);
     const ExpectedVoid result = fs.listDirectory(PATH, collectEntries, nullptr);
-    CHECK(failsWith(result, CoreError::NOT_SUPPORTED));
+    CHECK(failsWith(result, CoreError::UNSUPPORTED));
 }
 
 } // namespace
