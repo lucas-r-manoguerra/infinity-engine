@@ -49,7 +49,7 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | ✅ Completada |
 | **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection, file system + UTF-8, diagnostics, SystemRegistry, memory budgets, profiler, time budgets por sistema | ✅ Completada (F2.1–F2.14) |
 | **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) — headless (ADR-030) + input determinista (ADR-033) + contexto RAII listos; backend X11 pendiente | 🔄 En curso |
-| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + esqueleto Vulkan + headless | ⏳ Planificada |
+| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + esqueleto Vulkan + headless | 🔄 En curso (F4.1–4.4, 4.7, 4.9; faltan Vulkan, Null, offscreen runtime, cámaras) |
 | **F5** | ECS | World, Entity (handle + generation), Component, System, Query con read/write sets | ⏳ Planificada |
 | **F6** | Runtime + MVP Parity 🏁 | `apps/sandbox`: ventana + triángulo + ECS. El engine corre y se puede mostrar | ⏳ Planificada |
 | **F7** | IA | `ContextSnapshot`, Agent, Prompt templates, CodeGen → C++ vía pipeline `tools/` | ⏳ Planificada |
@@ -73,6 +73,8 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | `mat4.mul` | ~34 ns | `entity.create` | ~8 ns |
 | `mat4.inverse` | ~18 ns | `query` 10k entidades | ~170 μs |
 | `quat.slerp` | ~75 ns | `arena alloc` | <60 ns *(nuevo)* |
+| `renderer.triangle` | ~11.1 μs *(medido F4.9)* | `renderer.pixel` | ~20.4 ns *(medido F4.9)* |
+| `renderer.full_frame` | ~0.36 ms *(medido F4.9)* | | |
 
 Volumen estimado del C++: ~500 líneas en F0, ~4.000 en F1, ~45.000 en F9–F12, ~80.000 en F13–F14 y ~15.000 en F15.
 

@@ -26,6 +26,8 @@
 // Memory suite (bench_arena.cpp, F2.10); dispatched here so both suites run
 // under the single infinity-bench executable.
 int runArenaBenchmarks();
+// Renderer suite (bench_triangle.cpp, F4.9); dispatched the same way.
+int runTriangleBenchmarks();
 
 namespace {
 
@@ -104,6 +106,7 @@ int main() {
            "vec3.normalize");
 
     runArenaBenchmarks();
+    runTriangleBenchmarks();
 
     return 0;
 }
