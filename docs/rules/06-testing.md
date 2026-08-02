@@ -36,6 +36,9 @@
 | assets (F9) | streaming por chunks, procgen: mismo seed → mismo mundo | determinista + property tests (ADR-076/077) |
 | network (F15) | red simulada: latencia/pérdida/jitter, server authority | integration + escenarios de red (ADR-074) |
 
+> Las fases F0–F15 se detallan en `docs/ROADMAP.md` §5; un módulo futuro (`assets` F9,
+> `network` F15) entra a este contrato cuando arranca su fase (rule 01).
+
 ## Fault injection (ADR-016)
 
 - Los fallos (alloc, IO, init) se inyectan de forma controlada en tests.

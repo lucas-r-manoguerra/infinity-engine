@@ -6,7 +6,7 @@
 ![CMake](https://img.shields.io/badge/CMake-3.24%2B-064F8C?style=flat&logo=cmake&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-0A66C2?style=flat&logo=linux&logoColor=white)
 ![CI](https://github.com/lucas-r-manoguerra/infinity-engine/actions/workflows/ci.yml/badge.svg)
-![Status](https://img.shields.io/badge/status-alpha%20v0.1.0--alpha.2-orange?style=flat)
+![Status](https://img.shields.io/badge/status-alpha%20v0.1.0-orange?style=flat)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)
 
 ---
@@ -49,7 +49,7 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | **F1** | Math Core | `Vec2/3/4`, `Mat4`, `Quat`, `Transform` con tests y benchmarks | ✅ Completada |
 | **F2** | Core | Allocators explícitos, `std::expected`, fixed timestep 60 Hz, thread pool, fault injection, file system + UTF-8, diagnostics, SystemRegistry, memory budgets, profiler, time budgets por sistema | ✅ Completada (F2.1–F2.14) |
 | **F3** | Platform | Abstracción de plataforma con backend X11 (window, input determinista, gamepad) — headless (ADR-030) + input determinista (ADR-033) + contexto RAII listos; backend X11 pendiente | 🔄 En curso |
-| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + cámara first-class (vista/proyección world→pixel) + esqueleto Vulkan + headless | 🔄 En curso (F4.1–4.4, 4.7, 4.9, 4.10; faltan Vulkan, Null, cámaras → render targets) |
+| **F4** | Renderer | RHI backend-agnostic: backend software BGRA32 por tiles + cámara first-class (vista/proyección world→pixel) + esqueleto Vulkan + headless | 🔄 En curso (F4.1–4.4, 4.7, 4.9, 4.10; faltan Vulkan, Null, y cámara→render targets) |
 | **F5** | ECS | World, Entity (handle + generation), Component, System, Query con read/write sets | ⏳ Planificada |
 | **F6** | Runtime + MVP Parity 🏁 | `apps/sandbox`: ventana + triángulo + ECS. El engine corre y se puede mostrar | ⏳ Planificada |
 | **F7** | IA | `ContextSnapshot`, Agent, Prompt templates, CodeGen → C++ vía pipeline `tools/` | ⏳ Planificada |
@@ -62,11 +62,11 @@ Construcción módulo por módulo en orden de dependencia, desde los fundamentos
 | **F14** | Multi-plataforma + ecosistema | Win32, Cocoa/Metal; semver + changelog + release automation | ⏳ Planificada |
 | **F15** | Online / server-class | Netcode server authority, mundo particionable y persistente, red simulada, telemetría, seguridad | ⏳ Planificada |
 
-**Decisiones**: el diseño se documenta en **96 decisiones fundacionales (D1–D96)** y **97 ADRs (ADR-001 a ADR-097)** en `docs/ARCHITECTURE.md`.
+**Decisiones**: el diseño se documenta en **96 decisiones fundacionales (D1–D96)** en `docs/ROADMAP.md` y en **97 ADRs (ADR-001 a ADR-097)** en `docs/ARCHITECTURE.md`.
 
 **Criterios de salida** (gates de calidad obligatorios): tests verdes + 0 leaks bajo ASan por módulo; benchmarks dentro de los targets documentados (una regresión = bug, no se avanza); `-Werror`, `clang-format` y `clang-tidy` limpios siempre; y demo corriendo por fase (ADR-060). F6 marca el hito **MVP parity**.
 
-**Métricas de progreso y baselines** (medidos en la era previa, targets para el C++ — sección 7 del roadmap):
+**Métricas de progreso y baselines** (baselines de referencia y mediciones C++ — sección 7 del roadmap):
 
 | Métrica | Target | Métrica | Target |
 |---|---|---|---|
@@ -102,7 +102,7 @@ Antes de commitear, formatear y lintear:
 | `release` | Benchmarks y entrega | `-O2`, sin sanitizers, `-Werror` |
 | `ci` | CI (GitHub Actions) | Idéntico a `debug` + clang-tidy con warnings como errores |
 
-Benchmarks en release: `cmake --preset release && cmake --build --preset release && ./apps/bench/infinity-bench` *(el ejecutable llega en F6)*.
+Benchmarks en release: `cmake --preset release && cmake --build --preset release && ./apps/bench/infinity-bench`.
 
 ## 📦 Estructura del repositorio
 
@@ -113,19 +113,19 @@ Infinity-Engine/
 ├── 🔩 engine/         # el engine — CADA módulo = static library
 │   ├── core/         # Allocator, Time, Loop, Diagnostics, ThreadPool, SystemRegistry
 │   ├── math/         # Vec2/3/4, Mat4, Quat, Transform
-│   ├── platform/     # Window, Input + backends (X11…)
-│   ├── ecs/          # World, Entity, Component, System, Query
+│   ├── platform/     # Window, Input + backends (headless hoy; X11/Win32/Cocoa según disponibilidad)
+│   ├── ecs/          # World, Entity, Component, System, Query (F5, planificado)
 │   ├── renderer/     # interfaz + backends (software, vulkan)
-│   ├── ai/           # ContextSnapshot, Agent, Prompt, CodeGen
-│   ├── blueprint/    # VM, Node, Graph, Compiler (→ C++)
-│   └── runtime/      # lifecycle del engine: init → run → shutdown
-├── 🖥️ apps/           # ejecutables: sandbox (demo), bench (benchmarks)
+│   ├── ai/           # ContextSnapshot, Agent, Prompt, CodeGen (F7, planificado)
+│   ├── blueprint/    # VM, Node, Graph, Compiler (→ C++) (F8, planificado)
+│   └── runtime/      # lifecycle del engine: init → run → shutdown (F6, planificado)
+├── 🖥️ apps/           # ejecutables: sandbox (demo, F6), bench (benchmarks)
 ├── 🧪 tests/          # CTest — espejo de engine/ (doctest)
 ├── 📦 third_party/    # dependencias vendored (solo doctest por ahora)
 ├── 🛠️ scripts/        # format.sh, check-licenses.sh
-├── 🧰 tools/          # codegen unificado: reflection, blueprint compiler, IA
+├── 🧰 tools/          # codegen unificado: reflection, blueprint compiler, IA (F7)
 ├── 📖 docs/           # VISION, ROADMAP, ARCHITECTURE, rules/
-└── 🎨 assets/         # contenido data-driven: source → cooked → load
+└── 🎨 assets/         # contenido data-driven: source → cooked → load (F9, planificado)
 ```
 
 ## 🏗️ Arquitectura
@@ -133,17 +133,18 @@ Infinity-Engine/
 Modularidad por **static libraries** (`infinity_math`, `infinity_core`, …): las reglas de dependencia se cumplen en tiempo de link, no por buena voluntad. Una dependencia ilegal **rompe el build**.
 
 ```
-apps/            →  infinity_runtime
-runtime          →  core, platform, renderer, ecs
-renderer         →  core, math, platform
-ecs              →  core, math
+apps/sandbox     →  infinity_runtime                (F6, planificado)
+apps/bench       →  infinity_math, infinity_core, infinity_renderer   (medición de hot paths desde F1)
+runtime          →  core, platform, renderer, ecs   (F6, planificado)
+renderer         →  core, math (+ platform con backend Vulkan, F4.5)
+ecs              →  core, math                      (F5, planificado)
 platform         →  core
-ai / blueprint   →  core        (la IA habla con el resto vía ContextSnapshot serializado)
+ai / blueprint   →  core        (F7/F8, planificado — la IA habla con el resto vía ContextSnapshot serializado)
 math / core      →  (nada)
 ```
 
 - **Módulos de bajo nivel no conocen a los de alto nivel**: `math` no sabe que existe `ecs`; `core` no sabe que existe `ai`.
-- **La plataforma siempre abstraída**: `platform/window.h` define la interfaz; los backends viven en `src/<backend>/` (X11 por ahora) y se eligen en tiempo de compilación.
+- **La plataforma siempre abstraída**: `platform/window.h` define la interfaz; los backends viven en `src/<backend>/` y se eligen en tiempo de compilación según la plataforma (headless hoy; X11 en Linux, Win32 en Windows, Cocoa en macOS según disponibilidad).
 - **La IA no importa ECS ni Renderer**: recibe un `ContextSnapshot` serializado (data-only).
 - **Tests espejo**: `engine/<mod>/` → `tests/<mod>/`, un ejecutable `infinity_<mod>_tests` por módulo.
 - **Un archivo = una tarea**: headers públicos en `engine/<mod>/include/infinity/<mod>/`, lo que no está ahí no existe para los demás módulos.
@@ -167,7 +168,7 @@ Resumen de [`docs/rules/INDEX.md`](docs/rules/INDEX.md) — las reglas son ley:
 | [`docs/VISION.md`](docs/VISION.md) | Visión del producto: control total, IA nativa, tres caminos (IA-only / C++ / Blueprints), online + procedural + renderer-class |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Plan de construcción F0–F15, decisiones D1–D96, métricas y baselines |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Estructura, dependencias y los 97 ADRs |
-| [`docs/rules/`](docs/rules/) | Reglas operativas de desarrollo (01–11) |
+| [`docs/rules/`](docs/rules/) | Reglas operativas de desarrollo (01–12) |
 
 ## 🤝 Contribuir
 

@@ -8,7 +8,7 @@
 |---|---|---|
 | `debug` | Desarrollo diario | C++23, `-Wall -Wextra -Werror`, ASan + UBSan, sin optimizar |
 | `release` | Benchmarks y entrega | `-O2`, sin sanitizers, asserts off |
-| `ci` | GitHub Actions | Idéntico a debug + clang-tidy + clang-format check |
+| `ci` | GitHub Actions | Idéntico a debug + clang-tidy (vía `CMAKE_CXX_CLANG_TIDY`); clang-format en job aparte |
 
 > **Excepción macOS (CI)**: el job `ci` en runners macOS arm64 compila con
 > **UBSan-only** — el runtime ASan del keg `llvm@20` de Homebrew cuelga al
