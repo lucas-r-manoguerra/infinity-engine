@@ -331,23 +331,38 @@ ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCall
 #else
 
 // Non-POSIX hosts (Windows today): the POSIX file API does not exist, so the
-// backend is a stub. Every operation reports UNSUPPORTED before touching
-// anything (no probe, no validation, no host call); parameters are named and
-// ignored to satisfy -Werror and clang-tidy, and the helpers in fs_os_detail
-// are never reached. A native backend for the host replaces this stub without
-// changing the public API (rule 04, not_supported category).
+// backend is a stub. Every operation keeps the exact same contract as the real
+// backend (probe the injected FaultInjector first, ADR-016), then reports
+// UNSUPPORTED (not_supported category) without validation or host calls;
+// parameters are named and ignored to satisfy -Werror and clang-tidy, and the
+// helpers in fs_os_detail are never reached. A native backend for the host
+// replaces this stub without changing the public API (rule 04). Probing in the
+// stub also keeps m_injector used on every host, so clang-cl -Werror does not
+// flag an unused private field on Windows.
 Expected<bool> PosixFileSystem::exists(std::string_view path) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.exists");
+    if (!probe.has_value()) {
+        return std::unexpected(probe.error());
+    }
     (void)path;
     return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 Expected<uint64_t> PosixFileSystem::fileSize(std::string_view path) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.fileSize");
+    if (!probe.has_value()) {
+        return std::unexpected(probe.error());
+    }
     (void)path;
     return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 Expected<std::size_t> PosixFileSystem::readFile(std::string_view path, void* buffer,
                                                 std::size_t capacity) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.readFile");
+    if (!probe.has_value()) {
+        return std::unexpected(probe.error());
+    }
     (void)path;
     (void)buffer;
     (void)capacity;
@@ -356,6 +371,10 @@ Expected<std::size_t> PosixFileSystem::readFile(std::string_view path, void* buf
 
 Expected<std::size_t> PosixFileSystem::writeFile(std::string_view path, const void* data,
                                                  std::size_t size) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.writeFile");
+    if (!probe.has_value()) {
+        return std::unexpected(probe.error());
+    }
     (void)path;
     (void)data;
     (void)size;
@@ -363,23 +382,39 @@ Expected<std::size_t> PosixFileSystem::writeFile(std::string_view path, const vo
 }
 
 ExpectedVoid PosixFileSystem::remove(std::string_view path) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.remove");
+    if (!probe.has_value()) {
+        return probe;
+    }
     (void)path;
     return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::rename(std::string_view from, std::string_view to) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.rename");
+    if (!probe.has_value()) {
+        return probe;
+    }
     (void)from;
     (void)to;
     return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::makeDirectory(std::string_view path) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.makeDirectory");
+    if (!probe.has_value()) {
+        return probe;
+    }
     (void)path;
     return std::unexpected(CoreError::UNSUPPORTED);
 }
 
 ExpectedVoid PosixFileSystem::listDirectory(std::string_view path, DirectoryCallback callback,
                                             void* userData) noexcept {
+    const ExpectedVoid probe = m_injector->probe("fs.listDirectory");
+    if (!probe.has_value()) {
+        return probe;
+    }
     (void)path;
     (void)callback;
     (void)userData;
