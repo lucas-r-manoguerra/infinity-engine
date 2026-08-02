@@ -4,7 +4,9 @@
 // rule 04): on hosts without the POSIX file API (Windows today), PosixFileSystem
 // is a stub and every operation reports UNSUPPORTED, so the type and the API
 // stay available and the missing capability is an explicit, documented error
-// instead of a link failure. Compiled only on non-POSIX hosts (see
+// instead of a link failure. The stub keeps the real backend's contract:
+// it probes the injected FaultInjector first (ADR-016) and honors an injected
+// fault before reporting UNSUPPORTED. Compiled only on non-POSIX hosts (see
 // tests/core/CMakeLists.txt); on POSIX hosts the real backend is exercised by
 // fs_os_test.cpp, fs_os_tree_test.cpp and fs_os_fault_test.cpp.
 //
@@ -47,6 +49,13 @@ template <typename T>
 void collectEntries(const DirectoryEntry& entry, void* userData) noexcept {
     (void)entry;
     (void)userData;
+}
+
+TEST_CASE("PosixFileSystem stub honors an injected fault before UNSUPPORTED") {
+    FaultInjector injector;
+    injector.failNext("fs.exists", CoreError::IO_ERROR);
+    PosixFileSystem fs(injector);
+    CHECK(failsWith(fs.exists(PATH), CoreError::IO_ERROR));
 }
 
 TEST_CASE("PosixFileSystem stub reports UNSUPPORTED for exists") {
