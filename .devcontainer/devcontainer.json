@@ -4,8 +4,8 @@
     "dockerfile": "Dockerfile"
   },
   "containerEnv": {
-    "CC": "gcc-14",
-    "CXX": "g++-14"
+    "CC": "clang-20",
+    "CXX": "clang++-20"
   },
   "customizations": {
     "vscode": {
