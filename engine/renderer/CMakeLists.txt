@@ -1,5 +1,6 @@
 add_library(infinity_renderer STATIC
     src/camera.cpp
+    src/color.cpp
     src/render_target.cpp
     src/renderer.cpp
     src/software/software_backend.cpp

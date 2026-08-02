@@ -13,7 +13,9 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
 
 namespace infinity::renderer {
 
@@ -47,5 +49,14 @@ struct Color {
                  .b = linearChannelToSrgb(color.b),
                  .a = color.a};
 }
+
+// Precomputed linear-to-sRGB lookup table (G2). Entry i maps linear value
+// i/1023 to its sRGB byte using the exact curve above and the same rounding
+// contract as the pixel pack path (trunc(0.5 + 255 * channel)). The 1024
+// entries quantize the linear input to 10 bits, which never deviates from the
+// exact curve by more than one byte (color_lut_test.cpp), while keeping the
+// raster hot path to a single lookup per channel instead of a per-pixel
+// std::pow. The returned table is const after first init.
+[[nodiscard]] const std::array<std::uint8_t, 1024>& srgbLookupTable() noexcept;
 
 } // namespace infinity::renderer
