@@ -3,6 +3,10 @@
 
 #include "headless/headless_window.h"
 
+#if defined(INFINITY_PLATFORM_X11)
+#include "x11/x11_window.h"
+#endif
+
 #include <new>
 #include <utility>
 
@@ -30,11 +34,9 @@ Expected<WindowPtr> createWindow(core::Allocator& allocator, const WindowConfig&
         return std::unexpected(PlatformError::INVALID_SIZE);
     }
 #if defined(INFINITY_PLATFORM_X11)
-    // The X11 backend lands in F3.1. Until it exists the platform reports the
-    // capability as unsupported instead of half-opening a native surface.
-    (void)allocator;
-    (void)config;
-    return std::unexpected(PlatformError::UNSUPPORTED);
+    // X11 backend (F3.1): a real native surface when a display server is
+    // reachable; UNSUPPORTED otherwise (createX11Window owns the failure path).
+    return createX11Window(allocator, config);
 #else
     // INFINITY_PLATFORM_HEADLESS is defined in engine/platform/CMakeLists.txt
     // when this branch is the active backend.
