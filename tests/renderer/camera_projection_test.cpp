@@ -1,13 +1,14 @@
-// tests/renderer/camera_test.cpp
+// tests/renderer/camera_projection_test.cpp
 //
-// Contract tests for first-class cameras (F4.10, ADR-051): Camera is a plain,
-// serializable data struct (ADR-038, rule 11) with documented defaults;
-// buildViewProjection validates the camera (rule 04) and returns the
-// column-major view-projection matrix; projectWorldToScreen maps NDC to the
-// draw-list pixel space (top-left origin, +y down) and rejects points behind
-// the camera, outside the frustum, and degenerate targets. Projection math is
-// deterministic (rule 11): the same camera yields the same matrix, and the
-// degree-based fov maps the true frustum edge to the target edge.
+// Contract tests for camera projection math (F4.10, ADR-051): Camera is a
+// plain, serializable data struct (ADR-038, rule 11) with documented defaults;
+// buildViewProjection returns the column-major view-projection matrix;
+// projectWorldToScreen maps NDC to the draw-list pixel space (top-left origin,
+// +y down) and rejects points behind the camera, outside the frustum, and
+// degenerate targets. Projection math is deterministic (rule 11): the same
+// camera yields the same matrix, and the degree-based fov maps the true frustum
+// edge to the target edge. Validation cases live in camera_validation_test.cpp
+// (rule 01: One File = One Task).
 #include "infinity/math/mat4.h"
 #include "infinity/math/quat.h"
 #include "infinity/math/vec2.h"
@@ -17,7 +18,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <numbers>
 
 #include <doctest/doctest.h>
@@ -31,7 +31,6 @@ using infinity::math::Vec3;
 using infinity::renderer::buildViewProjection;
 using infinity::renderer::Camera;
 using infinity::renderer::projectWorldToScreen;
-using infinity::renderer::RenderError;
 
 constexpr float EPSILON = 1e-4f;
 constexpr std::uint32_t WIDTH = 800;
@@ -58,11 +57,6 @@ bool matricesBitEqual(const Mat4& a, const Mat4& b) {
         }
     }
     return true;
-}
-
-// Isolated from CHECK so doctest never stringifies a RenderError (ADL).
-bool isInvalidArgument(const infinity::renderer::Expected<Mat4>& result) {
-    return !result.has_value() && result.error() == RenderError::INVALID_ARGUMENT;
 }
 
 // Camera looking straight down -Z from the origin with a 90-degree fov and
@@ -216,87 +210,4 @@ TEST_CASE("identical cameras produce bit-identical view-projections (rule 11)") 
             CHECK(a->y == b->y);
         }
     }
-}
-
-TEST_CASE("buildViewProjection rejects cameras with invalid parameters") {
-    // Each case starts from a valid camera and breaks exactly one parameter.
-    {
-        Camera camera = originCamera();
-        camera.fovYDegrees = 0.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.fovYDegrees = 180.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.fovYDegrees = -60.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.fovYDegrees = std::numeric_limits<float>::quiet_NaN();
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.aspect = 0.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.aspect = -1.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.near = 0.0f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.near = -0.5f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.far = camera.near;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-    {
-        Camera camera = originCamera();
-        camera.far = camera.near * 0.5f;
-        CHECK(isInvalidArgument(buildViewProjection(camera)));
-    }
-}
-
-TEST_CASE("points behind the camera return nullopt") {
-    const Camera camera = originCamera();
-    checkNoProjection(camera, Vec3{0.0f, 0.0f, 5.0f});
-    checkNoProjection(camera, Vec3{0.0f, 0.0f, 0.0f}); // on the camera plane (w == 0)
-    checkNoProjection(camera, Vec3{3.0f, -2.0f, 1.0f});
-}
-
-TEST_CASE("points outside the frustum return nullopt") {
-    const Camera camera = originCamera();
-    checkNoProjection(camera, Vec3{100.0f, 0.0f, -5.0f});
-    checkNoProjection(camera, Vec3{-100.0f, 0.0f, -5.0f});
-    checkNoProjection(camera, Vec3{0.0f, 100.0f, -5.0f});
-    checkNoProjection(camera, Vec3{0.0f, -100.0f, -5.0f});
-    checkNoProjection(camera, Vec3{6.0f, 0.0f, -5.0f}); // just past the right edge
-}
-
-TEST_CASE("a degenerate target size returns nullopt") {
-    const Camera camera = originCamera();
-    const infinity::renderer::Expected<Mat4> viewProjection = buildViewProjection(camera);
-    CHECK(viewProjection.has_value());
-    if (!viewProjection.has_value()) {
-        return;
-    }
-    const Vec3 point{0.0f, 0.0f, -5.0f};
-    CHECK_FALSE(projectWorldToScreen(point, *viewProjection, 0, 0).has_value());
-    CHECK_FALSE(projectWorldToScreen(point, *viewProjection, 0, HEIGHT).has_value());
-    CHECK_FALSE(projectWorldToScreen(point, *viewProjection, WIDTH, 0).has_value());
 }
