@@ -10,6 +10,11 @@
 // tests/core/CMakeLists.txt); on POSIX hosts the real backend is exercised by
 // fs_os_test.cpp, fs_os_tree_test.cpp and fs_os_fault_test.cpp.
 //
+// CI note: the Windows job of this PR stopped triggering on pushes for a while
+// (GitHub Actions did not deliver pull_request synchronize events); the PR was
+// reopened to force the workflow. Empty commits are forbidden (rule 10), so the
+// re-trigger commit carries this comment instead of an empty tree.
+//
 // ADL note (same as error_test.cpp): infinity::core::toString would win ADL
 // over doctest's toString for a CoreError operand, so no CHECK ever compares
 // a CoreError directly; failsWith() isolates the comparison.
